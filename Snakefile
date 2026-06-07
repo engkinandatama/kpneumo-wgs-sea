@@ -74,8 +74,24 @@ rule download_sra:
         """
         prefetch {wildcards.sample} -O data/raw/ &> {log}
         fasterq-dump data/raw/{wildcards.sample} -O data/raw/ --split-files --threads {threads} &>> {log}
-        gzip data/raw/{wildcards.sample}_1.fastq &>> {log}
-        gzip data/raw/{wildcards.sample}_2.fastq &>> {log}
+        
+        # Handle single-end output where fasterq-dump might write <sample>.fastq
+        if [ -f data/raw/{wildcards.sample}.fastq ] && [ ! -f data/raw/{wildcards.sample}_1.fastq ]; then
+            mv data/raw/{wildcards.sample}.fastq data/raw/{wildcards.sample}_1.fastq
+        fi
+        
+        # Ensure R1 file exists
+        if [ ! -f data/raw/{wildcards.sample}_1.fastq ]; then
+            touch data/raw/{wildcards.sample}_1.fastq
+        fi
+        
+        # Ensure R2 file exists as placeholder for single-end samples
+        if [ ! -f data/raw/{wildcards.sample}_2.fastq ]; then
+            touch data/raw/{wildcards.sample}_2.fastq
+        fi
+        
+        gzip -f data/raw/{wildcards.sample}_1.fastq &>> {log}
+        gzip -f data/raw/{wildcards.sample}_2.fastq &>> {log}
         """
 
 # ============================================================
@@ -96,15 +112,27 @@ rule fastp:
     benchmark: "benchmarks/fastp/{sample}.tsv"
     conda: "envs/qc.yaml"
     threads: config["threads"]["fastp"]
+    params:
+        layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired"
     resources:
         mem_mb = 8000
     shell:
         """
-        fastp -i {input.r1} -I {input.r2} \
-              -o {output.r1} -O {output.r2} \
-              -j {output.json} -h {output.html} \
-              -q 20 -l 36 --thread {threads} --detect_adapter_for_pe \
-              2> {log}
+        if [ "{params.layout}" = "paired" ]; then
+            fastp -i {input.r1} -I {input.r2} \
+                  -o {output.r1} -O {output.r2} \
+                  -j {output.json} -h {output.html} \
+                  -q 20 -l 36 --thread {threads} --detect_adapter_for_pe \
+                  2> {log}
+        else
+            fastp -i {input.r1} \
+                  -o {output.r1} \
+                  -j {output.json} -h {output.html} \
+                  -q 20 -l 36 --thread {threads} \
+                  2> {log}
+            # Create a valid empty gzip file as a placeholder for R2
+            echo -n "" | gzip > {output.r2}
+        fi
         """
 
 rule fastqc:
@@ -116,7 +144,15 @@ rule fastqc:
     threads: 2
     resources:
         mem_mb = 2000
-    shell: "fastqc {input} -o results/qc/ -t {threads} 2> {log}"
+    shell:
+        """
+        # If the input file is an empty gzip file, create a mock HTML report
+        if [ $(gzip -cd {input} | wc -c) -eq 0 ]; then
+            echo "<html><body><h3>Empty file (Single-end read 2 placeholder)</h3></body></html>" > {output}
+        else
+            fastqc {input} -o results/qc/ -t {threads} 2> {log}
+        fi
+        """
 
 # ============================================================
 # --- 3. ALIGNMENT & BAM QC ---
@@ -135,14 +171,23 @@ rule align:
     benchmark: "benchmarks/align/{sample}.tsv"
     conda: "envs/align.yaml"
     threads: config["threads"]["align"]
+    params:
+        layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired"
     resources:
         mem_mb = config["mem"]["align"]
     shell:
         """
-        bwa mem -t {threads} \
-            -R "@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA" \
-            {input.ref} {input.r1} {input.r2} 2>> {log} \
-            | samtools sort -@ {threads} -o {output.sorted_bam} 2>> {log}
+        if [ "{params.layout}" = "paired" ]; then
+            bwa mem -t {threads} \
+                -R "@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA" \
+                {input.ref} {input.r1} {input.r2} 2>> {log} \
+                | samtools sort -@ {threads} -o {output.sorted_bam} 2>> {log}
+        else
+            bwa mem -t {threads} \
+                -R "@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tPL:ILLUMINA" \
+                {input.ref} {input.r1} 2>> {log} \
+                | samtools sort -@ {threads} -o {output.sorted_bam} 2>> {log}
+        fi
         samtools index {output.sorted_bam} 2>> {log}
         """
 
@@ -250,16 +295,26 @@ rule snippy:
     benchmark: "benchmarks/snippy/{sample}.tsv"
     conda: "envs/snippy.yaml"
     threads: config["threads"]["align"]
+    params:
+        layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired"
     resources:
         mem_mb = 8000
     shell:
         """
-        snippy --cpus {threads} \
-               --outdir results/variants/{wildcards.sample}_snippy \
-               --ref {input.ref} \
-               --R1 {input.r1} \
-               --R2 {input.r2} \
-               --force >> {log} 2>&1
+        if [ "{params.layout}" = "paired" ]; then
+            snippy --cpus {threads} \
+                   --outdir results/variants/{wildcards.sample}_snippy \
+                   --ref {input.ref} \
+                   --R1 {input.r1} \
+                   --R2 {input.r2} \
+                   --force >> {log} 2>&1
+        else
+            snippy --cpus {threads} \
+                   --outdir results/variants/{wildcards.sample}_snippy \
+                   --ref {input.ref} \
+                   --se {input.r1} \
+                   --force >> {log} 2>&1
+        fi
         """
 
 rule snippy_core:
@@ -318,12 +373,21 @@ rule assemble:
     resources:
         mem_mb = config["mem"]["assemble"]
     params:
+        layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired",
         mem_gb = lambda wildcards, resources: int(resources.mem_mb / 1000)
+    resources:
+        mem_mb = config["mem"]["assemble"]
     shell:
         """
-        spades.py -1 {input.r1} -2 {input.r2} \
-            -o results/amr/{wildcards.sample}_assembly \
-            --threads {threads} -m {params.mem_gb} >> {log} 2>&1
+        if [ "{params.layout}" = "paired" ]; then
+            spades.py -1 {input.r1} -2 {input.r2} \
+                -o results/amr/{wildcards.sample}_assembly \
+                --threads {threads} -m {params.mem_gb} >> {log} 2>&1
+        else
+            spades.py -s {input.r1} \
+                -o results/amr/{wildcards.sample}_assembly \
+                --threads {threads} -m {params.mem_gb} >> {log} 2>&1
+        fi
         """
 
 rule quast:
