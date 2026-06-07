@@ -417,7 +417,14 @@ rule kleborate:
     shell:
         """
         kleborate -a {input} -o results/typing/{wildcards.sample}_out -p kpsc --trim_headers 2> {log}
-        mv results/typing/{wildcards.sample}_out/*_output.txt {output} 2>> {log}
+        
+        if ls results/typing/{wildcards.sample}_out/*_output.txt >/dev/null 2>&1; then
+            mv results/typing/{wildcards.sample}_out/*_output.txt {output} 2>> {log}
+        else
+            printf "strain\\tspecies\\tN50\\tST\\tvirulence_score\\tresistance_score\\tnum_resistance_classes\\tnum_resistance_genes\\n" > {output}
+            printf "%s\\tUnknown/failed_kp_check\\t0\\t-\\t-\\t-\\t-\\t-\\n" "{wildcards.sample}" >> {output}
+        fi
+        
         rm -rf results/typing/{wildcards.sample}_out
         """
 
