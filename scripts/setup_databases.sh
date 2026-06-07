@@ -39,9 +39,25 @@ else
 fi
 
 # ─── 2. SnpEff Database ───────────────────────────────────────────────────────
-echo "[2/6] Downloading SnpEff database for K. pneumoniae HS11286..."
-conda run -n kpneumo_variants snpEff download -v Klebsiella_pneumoniae_subsp_pneumoniae_HS11286
-echo "    SnpEff database ready."
+SNPEFF_DB_DIR="data/snpeff_data/Klebsiella_pneumoniae_subsp_pneumoniae_HS11286"
+if [ ! -f "$SNPEFF_DB_DIR/genes.snpEffectPredictor.bin" ]; then
+    echo "[2/6] Building local SnpEff database for K. pneumoniae HS11286..."
+    mkdir -p "$SNPEFF_DB_DIR"
+    
+    # Copy reference FASTA
+    cp "$REF" "$SNPEFF_DB_DIR/sequences.fa"
+    
+    # Download GFF3
+    wget --tries=3 -q \
+        "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/240/185/GCF_000240185.1_ASM24018v2/GCF_000240185.1_ASM24018v2_genomic.gff.gz" \
+        -O "$SNPEFF_DB_DIR/genes.gff.gz"
+        
+    # Build database
+    conda run -n kpneumo_variants snpEff build -gff3 -v Klebsiella_pneumoniae_subsp_pneumoniae_HS11286
+    echo "    SnpEff database built successfully."
+else
+    echo "[2/6] SnpEff database already exists, skipping."
+fi
 
 # ─── 3. AMRFinderPlus Database ────────────────────────────────────────────────
 echo "[3/6] Updating AMRFinderPlus database..."
