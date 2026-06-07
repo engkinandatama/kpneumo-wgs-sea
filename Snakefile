@@ -478,7 +478,7 @@ rule amrfinderplus:
     resources:
         mem_mb = 4000
     shell:
-        "amrfinder -n {input.fasta} --database {input.db}/latest -O Klebsiella -o {output} 2> {log}"
+        "amrfinder -n {input.fasta} --database {input.db}/latest -O Klebsiella_pneumoniae -o {output} 2> {log}"
 
 rule resfinder:
     """ResFinder: detects plasmid-mediated acquired resistance genes.
