@@ -37,7 +37,7 @@ dependencies:
 
   # --- AMR Profiling & Typing ---
   - abricate=1.0.1
-  - rgi=6.0.3
+  - rgi
   - ncbi-amrfinderplus=3.12.8
   - resfinder
   - kleborate
