@@ -19,8 +19,8 @@ Pipeline Snakemake untuk analisis Whole Genome Sequencing (WGS) isolat *Klebsiel
 
 ### 1. Clone Repository
 ```bash
-git clone <url-repo-ini>
-cd kpnumo-wgs
+git clone https://github.com/engkinandatama/kpneumo-wgs-sea.git
+cd kpneumo-wgs-sea
 ```
 
 ### 2. Setup Environment
