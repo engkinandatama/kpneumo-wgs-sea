@@ -109,6 +109,7 @@ rule fastqc:
     input: "results/trimmed/{sample}_{read}.fastq.gz"
     output: "results/qc/{sample}_{read}_fastqc.html"
     log: "logs/qc/{sample}_{read}_fastqc.log"
+    benchmark: "benchmarks/fastqc/{sample}_{read}.tsv"
     threads: 2
     resources:
         mem_mb = 2000
@@ -149,6 +150,7 @@ rule bam_qc:
         flagstat = "results/qc/{sample}_flagstat.txt",
         qualimap = directory("results/qc/{sample}_qualimap")
     log: "logs/qc/{sample}_bamqc.log"
+    benchmark: "benchmarks/bam_qc/{sample}.tsv"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -173,6 +175,7 @@ rule variant_calling:
     output:
         vcf = "results/variants/{sample}.raw.vcf"
     log: "logs/variants/{sample}_freebayes.log"
+    benchmark: "benchmarks/variant_calling/{sample}.tsv"
     resources:
         mem_mb = 8000
     shell: "freebayes -f {input.ref} {input.bam} > {output.vcf} 2> {log}"
@@ -183,6 +186,7 @@ rule filter_variants:
     output:
         vcf = "results/variants/{sample}.filtered.vcf"
     log: "logs/variants/{sample}_filter.log"
+    benchmark: "benchmarks/filter_variants/{sample}.tsv"
     resources:
         mem_mb = 2000
     shell: "vcffilter -f 'QUAL > 20 & DP > 10' {input.vcf} > {output.vcf} 2> {log}"
@@ -193,6 +197,7 @@ rule annotate_variants:
     output:
         vcf = "results/variants/{sample}.annotated.vcf"
     log: "logs/variants/{sample}_snpeff.log"
+    benchmark: "benchmarks/annotate_variants/{sample}.tsv"
     params:
         db = config["snpeff_db"]
     resources:
@@ -206,6 +211,7 @@ rule snpsift_filter:
     output:
         vcf = "results/variants/{sample}.highmod.vcf"
     log: "logs/variants/{sample}_snpsift.log"
+    benchmark: "benchmarks/snpsift_filter/{sample}.tsv"
     resources:
         mem_mb = 4000
     shell:
@@ -232,6 +238,7 @@ rule snippy:
         vcf = "results/variants/{sample}_snippy/snps.vcf",
         tab = "results/variants/{sample}_snippy/snps.tab"
     log: "logs/variants/{sample}_snippy.log"
+    benchmark: "benchmarks/snippy/{sample}.tsv"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -255,6 +262,7 @@ rule snippy_core:
         full = "results/phylogeny/core.full.aln",
         tab  = "results/phylogeny/core.tab"
     log: "logs/phylogeny/snippy_core.log"
+    benchmark: "benchmarks/snippy_core/core.tsv"
     resources:
         mem_mb = 8000
     params:
@@ -273,6 +281,7 @@ rule phylogeny:
     input: "results/phylogeny/core.full.aln"
     output: "results/phylogeny/core.tree"
     log: "logs/phylogeny/fasttree.log"
+    benchmark: "benchmarks/phylogeny/tree.tsv"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -308,6 +317,7 @@ rule quast:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: directory("results/qc/{sample}_quast")
     log: "logs/qc/{sample}_quast.log"
+    benchmark: "benchmarks/quast/{sample}.tsv"
     threads: config["threads"]["fastp"]
     resources:
         mem_mb = 4000
@@ -322,6 +332,7 @@ rule kleborate:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: "results/typing/{sample}_kleborate.txt"
     log: "logs/typing/{sample}_kleborate.log"
+    benchmark: "benchmarks/kleborate/{sample}.tsv"
     resources:
         mem_mb = 4000
     shell: "kleborate --all -a {input} -o {output} 2> {log}"
@@ -331,6 +342,7 @@ rule mlst_typing:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: "results/typing/{sample}_mlst.txt"
     log: "logs/typing/{sample}_mlst.log"
+    benchmark: "benchmarks/mlst_typing/{sample}.tsv"
     resources:
         mem_mb = 2000
     shell: "mlst --scheme klebsiella {input} > {output} 2> {log}"
@@ -339,6 +351,7 @@ rule abricate:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: "results/amr/{sample}_abricate.tab"
     log: "logs/amr/{sample}_abricate.log"
+    benchmark: "benchmarks/abricate/{sample}.tsv"
     resources:
         mem_mb = 2000
     shell: "abricate --db card {input} > {output} 2> {log}"
@@ -347,6 +360,7 @@ rule amrfinderplus:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: "results/amr/{sample}_amrfinder.txt"
     log: "logs/amr/{sample}_amrfinder.log"
+    benchmark: "benchmarks/amrfinderplus/{sample}.tsv"
     resources:
         mem_mb = 4000
     shell: "amrfinder -n {input} -O Klebsiella -o {output} 2> {log}"
@@ -357,6 +371,7 @@ rule resfinder:
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: directory("results/amr/{sample}_resfinder")
     log: "logs/amr/{sample}_resfinder.log"
+    benchmark: "benchmarks/resfinder/{sample}.tsv"
     params:
         db = config["resfinder_db"]
     resources:
@@ -377,6 +392,7 @@ rule abricate_summary:
     input: expand("results/amr/{sample}_abricate.tab", sample=SAMPLES)
     output: "results/amr/summary_abricate.tab"
     log: "logs/amr/abricate_summary.log"
+    benchmark: "benchmarks/abricate_summary/summary.tsv"
     resources:
         mem_mb = 2000
     shell: "abricate --summary {input} > {output} 2> {log}"
@@ -391,6 +407,7 @@ rule multiqc:
         expand("results/qc/{sample}_quast", sample=SAMPLES)
     output: "results/qc/multiqc_report.html"
     log: "logs/qc/multiqc.log"
+    benchmark: "benchmarks/multiqc/multiqc.tsv"
     resources:
         mem_mb = 4000
     shell: "multiqc results/qc/ -o results/qc/ -n multiqc_report.html 2> {log}"
