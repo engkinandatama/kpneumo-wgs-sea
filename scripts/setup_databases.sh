@@ -71,9 +71,17 @@ echo "    ABRicate databases ready."
 
 # ─── 5. ResFinder Database ────────────────────────────────────────────────────
 RESFINDER_DB="data/reference/resfinder_db"
+if [ -d "$RESFINDER_DB" ]; then
+    REMOTE_URL=$(git -C "$RESFINDER_DB" remote get-url origin 2>/dev/null || echo "")
+    if [[ "$REMOTE_URL" != *"bitbucket.org"* ]]; then
+        echo "Old ResFinder database remote detected. Re-cloning..."
+        rm -rf "$RESFINDER_DB"
+    fi
+fi
+
 if [ ! -d "$RESFINDER_DB" ]; then
     echo "[5/6] Cloning ResFinder database..."
-    git clone https://git.sr.ht/~genomicepidemiology/resfinder_db "$RESFINDER_DB"
+    git clone https://bitbucket.org/genomicepidemiology/resfinder_db.git "$RESFINDER_DB"
     cd "$RESFINDER_DB"
     conda run -n kpneumo_amr_typing python INSTALL.py
     cd -
