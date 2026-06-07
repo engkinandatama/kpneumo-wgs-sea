@@ -1,19 +1,37 @@
-# K. pneumoniae WGS Pipeline (SEA Study)
+# K. pneumoniae WGS Pipeline — SEA AMR Study
 
 Pipeline Snakemake untuk analisis Whole Genome Sequencing (WGS) isolat *Klebsiella pneumoniae* dari Asia Tenggara (Indonesia, Malaysia, Vietnam).
 
 ## Fitur
-- **Otomatisasi:** Dari download SRA hingga report final.
+- **Otomatisasi penuh:** Dari download SRA hingga report final dan phylogenetic tree.
 - **Efisiensi Penyimpanan:** Menggunakan fitur `temp()` Snakemake untuk menghapus file FASTQ dan BAM mentah setelah diproses.
-- **Reproduksibilitas:** Environment dikelola via Conda/Mamba.
-- **Analisis Komprehensif:** QC, Variant Calling, Assembly, AMR Profiling (Kleborate, ABRicate), dan MultiQC.
+- **Reproduksibilitas:** Environment dikelola via Conda/Mamba dengan versi yang terpinned.
+- **QC Komprehensif:** FastQC, fastp, Qualimap (BAM coverage), QUAST (assembly), MultiQC.
+- **Dual Variant Calling:** FreeBayes (+ SnpEff + SnpSift HIGH/MODERATE filter) & Snippy (bacterial-optimized).
+- **Phylogeny:** Core genome SNP alignment (snippy-core) → FastTree (GTR) → siap upload ke Microreact/iTOL.
+- **AMR Profiling Komprehensif:** Kleborate, ABRicate (CARD), AMRFinderPlus (NCBI), ResFinder (plasmid-mediated).
+- **Typing:** Kleborate (MLST + K/O-locus + virulence score) + standalone MLST (Pasteur scheme).
 
 ## Struktur Folder
-- `config/`: Konfigurasi pipeline dan daftar sampel.
-- `data/`: Data mentah dan referensi (diabaikan oleh git).
-- `results/`: Hasil analisis (diabaikan oleh git).
-- `logs/`: Log file setiap step.
-- `scripts/`: Helper scripts.
+```
+kpneumo-wgs-sea/
+├── config/
+│   ├── config.yaml     # Konfigurasi pipeline
+│   └── samples.tsv     # Daftar 15 sampel SEA
+├── data/               # Data & referensi (diabaikan git)
+├── results/            # Output pipeline (diabaikan git)
+├── logs/               # Log setiap step (diabaikan git)
+├── scripts/
+│   └── setup_databases.sh  # Setup database awal
+├── Snakefile           # Workflow utama
+└── environment.yml     # Conda environment
+```
+
+## Dataset
+15 isolat *K. pneumoniae* complex dari Asia Tenggara:
+- 🇮🇩 **Indonesia (5):** SRR31897984, SRR31897983, SRR31897982, SRR31897981, SRR21679075
+- 🇲🇾 **Malaysia (5):** SRR7964123–SRR7964127
+- 🇻🇳 **Vietnam (5):** DRR076141–DRR076145
 
 ## Cara Penggunaan (HPC)
 
@@ -30,7 +48,7 @@ conda activate kpneumo_wgs
 ```
 
 ### 3. Setup Database & Reference
-Jalankan script setup untuk mendownload database AMR dan referensi genome.
+Jalankan sekali untuk mendownload semua database yang diperlukan.
 ```bash
 bash scripts/setup_databases.sh
 ```
@@ -41,10 +59,23 @@ Lakukan *dry-run* terlebih dahulu untuk memastikan semua rule terhubung:
 snakemake -n
 ```
 
-Jalankan pipeline dengan batas 32 core (1/4 kapasitas HPC) agar tetap ramah bagi pengguna lain:
+Jalankan pipeline dengan batas 32 core (1/4 kapasitas HPC):
 ```bash
 snakemake --cores 32 --resources mem_mb=100000
 ```
 
+### 5. Visualisasi Phylogenetic Tree (Opsional)
+Upload `results/phylogeny/core.tree` ke [Microreact](https://microreact.org) atau [iTOL](https://itol.embl.de) bersama metadata `config/samples.tsv` untuk peta interaktif.
+
+## Output Utama
+| File | Deskripsi |
+|---|---|
+| `results/qc/multiqc_report.html` | Agregasi semua QC report |
+| `results/variants/{sample}.highmod.vcf` | Variant HIGH/MODERATE impact (FreeBayes + SnpEff + SnpSift) |
+| `results/variants/{sample}_snippy/snps.tab` | SNP summary per sampel (Snippy) |
+| `results/phylogeny/core.tree` | Phylogenetic tree (FastTree GTR) |
+| `results/typing/{sample}_kleborate.txt` | MLST, K/O-locus, virulence score |
+| `results/amr/summary_abricate.tab` | Summary AMR genes semua sampel |
+
 ## Modifikasi Sampel
-Daftar sampel dikelola di `config/samples.tsv`. Anda bisa menambah atau mengurangi ID aksesion SRA di sana.
+Daftar sampel dikelola di `config/samples.tsv`. Tambah atau kurangi ID aksesion SRA di sana, lalu jalankan ulang pipeline.

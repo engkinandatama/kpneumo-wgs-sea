@@ -18,5 +18,7 @@ mem:
   assemble: 16000 # 16GB per sampel (Cukup untuk bakteri K. pneumoniae)
   align: 8000     # 8GB
 
-kraken_db: "data/reference/kraken2_db"
+# Database paths (diisi oleh setup_databases.sh)
 snpeff_db: "Klebsiella_pneumoniae_subsp_pneumoniae_HS11286"
+kraken_db: "data/reference/kraken2_db"      # Reserved for future contamination check
+resfinder_db: "data/reference/resfinder_db"  # Plasmid-mediated resistance genes

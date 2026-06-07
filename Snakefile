@@ -9,14 +9,31 @@ REF = config["reference"]
 
 rule all:
     input:
+        # --- QC Reports ---
         "results/qc/multiqc_report.html",
+        # --- AMR Summaries ---
         "results/amr/summary_abricate.tab",
+        # --- Per-sample: BAM QC ---
+        expand("results/qc/{sample}_flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}_qualimap", sample=SAMPLES),
+        # --- Per-sample: Assembly QC ---
+        expand("results/qc/{sample}_quast", sample=SAMPLES),
+        # --- Per-sample: Variant Calling (FreeBayes) ---
+        expand("results/variants/{sample}.highmod.vcf", sample=SAMPLES),
+        # --- Per-sample: Variant Calling (Snippy) ---
+        expand("results/variants/{sample}_snippy/snps.vcf", sample=SAMPLES),
+        # --- Phylogeny ---
+        "results/phylogeny/core.tree",
+        # --- Per-sample: Typing ---
         expand("results/typing/{sample}_kleborate.txt", sample=SAMPLES),
-        expand("results/variants/{sample}.annotated.vcf", sample=SAMPLES),
+        expand("results/typing/{sample}_mlst.txt", sample=SAMPLES),
+        # --- Per-sample: AMR Profiling ---
         expand("results/amr/{sample}_amrfinder.txt", sample=SAMPLES),
-        expand("results/qc/{sample}_quast", sample=SAMPLES)
+        expand("results/amr/{sample}_resfinder", sample=SAMPLES)
 
+# ============================================================
 # --- 1. DOWNLOAD DATA ---
+# ============================================================
 rule download_sra:
     output:
         r1 = temp("data/raw/{sample}_1.fastq.gz"),
@@ -33,14 +50,16 @@ rule download_sra:
         gzip data/raw/{wildcards.sample}_2.fastq &>> {log}
         """
 
+# ============================================================
 # --- 2. QC & TRIMMING ---
+# ============================================================
 rule fastp:
     input:
         r1 = "data/raw/{sample}_1.fastq.gz",
         r2 = "data/raw/{sample}_2.fastq.gz"
     output:
-        r1 = temp("results/trimmed/{sample}_R1.fastq.gz"),
-        r2 = temp("results/trimmed/{sample}_R2.fastq.gz"),
+        r1   = temp("results/trimmed/{sample}_R1.fastq.gz"),
+        r2   = temp("results/trimmed/{sample}_R2.fastq.gz"),
         json = "results/qc/{sample}_fastp.json",
         html = "results/qc/{sample}_fastp.html"
     threads: config["threads"]["fastp"]
@@ -62,11 +81,13 @@ rule fastqc:
         mem_mb = 2000
     shell: "fastqc {input} -o results/qc/ -t {threads}"
 
-# --- 3. ALIGNMENT & VARIANT CALLING ---
+# ============================================================
+# --- 3. ALIGNMENT & BAM QC ---
+# ============================================================
 rule align:
     input:
-        r1 = "results/trimmed/{sample}_R1.fastq.gz",
-        r2 = "results/trimmed/{sample}_R2.fastq.gz",
+        r1  = "results/trimmed/{sample}_R1.fastq.gz",
+        r2  = "results/trimmed/{sample}_R2.fastq.gz",
         ref = REF
     output:
         sorted_bam = "results/aligned/{sample}.sorted.bam"
@@ -82,6 +103,27 @@ rule align:
         samtools index {output.sorted_bam} 2>> {log}
         """
 
+rule bam_qc:
+    """Quality gate: validate BAM before variant calling.
+    flagstat gives alignment rate; qualimap gives coverage depth per sample."""
+    input: "results/aligned/{sample}.sorted.bam"
+    output:
+        flagstat = "results/qc/{sample}_flagstat.txt",
+        qualimap = directory("results/qc/{sample}_qualimap")
+    log: "logs/qc/{sample}_bamqc.log"
+    threads: config["threads"]["align"]
+    resources:
+        mem_mb = 8000
+    shell:
+        """
+        samtools flagstat {input} > {output.flagstat} 2> {log}
+        qualimap bamqc -bam {input} -outdir {output.qualimap} \
+            --java-mem-size=8G -nt {threads} >> {log} 2>&1
+        """
+
+# ============================================================
+# --- 4. VARIANT CALLING (FreeBayes) ---
+# ============================================================
 rule variant_calling:
     input:
         bam = "results/aligned/{sample}.sorted.bam",
@@ -115,7 +157,84 @@ rule annotate_variants:
         mem_mb = 4000
     shell: "snpEff {params.db} {input.vcf} > {output.vcf} 2> {log}"
 
-# --- 4. ASSEMBLY & DOWNSTREAM ---
+rule snpsift_filter:
+    """Keep only HIGH and MODERATE impact variants for focused analysis."""
+    input:
+        vcf = "results/variants/{sample}.annotated.vcf"
+    output:
+        vcf = "results/variants/{sample}.highmod.vcf"
+    log: "logs/variants/{sample}_snpsift.log"
+    resources:
+        mem_mb = 4000
+    shell:
+        """
+        SnpSift filter \
+            "(ANN[*].IMPACT = 'HIGH') | (ANN[*].IMPACT = 'MODERATE')" \
+            {input.vcf} > {output.vcf} 2> {log}
+        """
+
+# ============================================================
+# --- 5. SNIPPY & PHYLOGENY ---
+# ============================================================
+rule snippy:
+    """Snippy: bacterial-specific variant calling. Produces clean per-sample VCF
+    and tabular SNP summary for easy downstream analysis."""
+    input:
+        r1  = "results/trimmed/{sample}_R1.fastq.gz",
+        r2  = "results/trimmed/{sample}_R2.fastq.gz",
+        ref = REF
+    output:
+        vcf = "results/variants/{sample}_snippy/snps.vcf",
+        tab = "results/variants/{sample}_snippy/snps.tab"
+    log: "logs/variants/{sample}_snippy.log"
+    threads: config["threads"]["align"]
+    resources:
+        mem_mb = 8000
+    shell:
+        """
+        snippy --cpus {threads} \
+               --outdir results/variants/{wildcards.sample}_snippy \
+               --ref {input.ref} \
+               --R1 {input.r1} \
+               --R2 {input.r2} \
+               --force >> {log} 2>&1
+        """
+
+rule snippy_core:
+    """Compute core genome SNP alignment across all samples.
+    core.full.aln includes invariant sites; used as input for phylogeny."""
+    input:
+        expand("results/variants/{sample}_snippy/snps.vcf", sample=SAMPLES)
+    output:
+        aln  = "results/phylogeny/core.aln",
+        full = "results/phylogeny/core.full.aln",
+        tab  = "results/phylogeny/core.tab"
+    log: "logs/phylogeny/snippy_core.log"
+    params:
+        ref  = REF,
+        dirs = " ".join([f"results/variants/{s}_snippy" for s in SAMPLES])
+    shell:
+        """
+        snippy-core --ref {params.ref} \
+            --prefix results/phylogeny/core \
+            {params.dirs} >> {log} 2>&1
+        """
+
+rule phylogeny:
+    """Build maximum-likelihood phylogenetic tree using FastTree (GTR+CAT model).
+    Output .tree file is directly uploadable to Microreact / iTOL."""
+    input: "results/phylogeny/core.full.aln"
+    output: "results/phylogeny/core.tree"
+    log: "logs/phylogeny/fasttree.log"
+    threads: config["threads"]["align"]
+    resources:
+        mem_mb = 8000
+    shell:
+        "FastTree -gtr -nt {input} > {output} 2> {log}"
+
+# ============================================================
+# --- 6. ASSEMBLY & ASSEMBLY QC ---
+# ============================================================
 rule assemble:
     input:
         r1 = "results/trimmed/{sample}_R1.fastq.gz",
@@ -135,13 +254,35 @@ rule assemble:
             "--threads {threads} -m " + str(mem_gb) + " >> {log} 2>&1"
         )
 
+rule quast:
+    input: "results/amr/{sample}_assembly/contigs.fasta"
+    output: directory("results/qc/{sample}_quast")
+    log: "logs/qc/{sample}_quast.log"
+    threads: config["threads"]["fastp"]
+    resources:
+        mem_mb = 4000
+    shell: "quast.py {input} -o {output} --threads {threads} 2> {log}"
+
+# ============================================================
+# --- 7. AMR PROFILING & TYPING ---
+# ============================================================
 rule kleborate:
+    """Kleborate: MLST + K/O loci + virulence + resistance scoring for Klebsiella."""
     input: "results/amr/{sample}_assembly/contigs.fasta"
     output: "results/typing/{sample}_kleborate.txt"
     log: "logs/typing/{sample}_kleborate.log"
     resources:
         mem_mb = 4000
     shell: "kleborate --all -a {input} -o {output} 2> {log}"
+
+rule mlst_typing:
+    """Standalone MLST cross-validation against Klebsiella scheme (Pasteur)."""
+    input: "results/amr/{sample}_assembly/contigs.fasta"
+    output: "results/typing/{sample}_mlst.txt"
+    log: "logs/typing/{sample}_mlst.log"
+    resources:
+        mem_mb = 2000
+    shell: "mlst --scheme klebsiella {input} > {output} 2> {log}"
 
 rule abricate:
     input: "results/amr/{sample}_assembly/contigs.fasta"
@@ -159,25 +300,41 @@ rule amrfinderplus:
         mem_mb = 4000
     shell: "amrfinder -n {input} -O Klebsiella -o {output} 2> {log}"
 
-rule quast:
+rule resfinder:
+    """ResFinder: detects plasmid-mediated acquired resistance genes.
+    Complements ABRicate/AMRFinder for comprehensive resistance profiling."""
     input: "results/amr/{sample}_assembly/contigs.fasta"
-    output: directory("results/qc/{sample}_quast")
-    log: "logs/qc/{sample}_quast.log"
-    threads: config["threads"]["fastp"]
+    output: directory("results/amr/{sample}_resfinder")
+    log: "logs/amr/{sample}_resfinder.log"
+    params:
+        db = config["resfinder_db"]
     resources:
         mem_mb = 4000
-    shell: "quast.py {input} -o {output} --threads {threads} 2> {log}"
+    shell:
+        """
+        python -m resfinder \
+            -ifa {input} \
+            -db_res {params.db} \
+            -o {output} \
+            --acquired >> {log} 2>&1
+        """
 
-# --- 5. SUMMARIES ---
+# ============================================================
+# --- 8. SUMMARIES ---
+# ============================================================
 rule abricate_summary:
     input: expand("results/amr/{sample}_abricate.tab", sample=SAMPLES)
     output: "results/amr/summary_abricate.tab"
     shell: "abricate --summary {input} > {output}"
 
 rule multiqc:
+    """Aggregate all QC reports: fastp, FastQC, flagstat, Qualimap, QUAST."""
     input:
         expand("results/qc/{sample}_fastp.html", sample=SAMPLES),
-        expand("results/qc/{sample}_{read}_fastqc.html", sample=SAMPLES, read=["R1", "R2"])
+        expand("results/qc/{sample}_{read}_fastqc.html", sample=SAMPLES, read=["R1", "R2"]),
+        expand("results/qc/{sample}_flagstat.txt", sample=SAMPLES),
+        expand("results/qc/{sample}_qualimap", sample=SAMPLES),
+        expand("results/qc/{sample}_quast", sample=SAMPLES)
     output: "results/qc/multiqc_report.html"
     resources:
         mem_mb = 4000

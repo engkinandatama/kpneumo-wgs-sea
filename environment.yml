@@ -4,25 +4,38 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  # --- QC & Trimming ---
   - fastqc=0.12.1
   - fastp=0.23.4
   - multiqc=1.19
+  # --- Alignment & BAM QC ---
   - bwa=0.7.17
   - samtools=1.19
   - qualimap=2.2.2
+  # --- Variant Calling (FreeBayes pipeline) ---
   - freebayes=1.3.6
   - vcflib=1.0.3
   - snpeff=5.2
   - snpsift=5.2
+  # --- Variant Calling (Snippy pipeline) ---
+  - snippy=4.6.0
+  - snp-sites=2.5.1
+  # --- Phylogeny ---
+  - fasttree=2.1.11
+  # --- Assembly ---
+  - spades=3.15.5
+  - quast=5.2.0
+  # --- AMR Profiling ---
+  - abricate=1.0.1
   - rgi=6.0.3
   - ncbi-amrfinderplus=3.12.8
-  - abricate=1.0.1
-  - spades=3.15.5
+  - resfinder=4.3.2
+  # --- Typing ---
   - kleborate=2.4.1
+  - mlst=2.23.0
+  # --- Download ---
   - sra-tools=3.0.10
-  - quast=5.2.0
-  - kraken2=2.1.3
-  - snippy=4.6.0
+  # --- Workflow ---
   - snakemake=7.32.4
   - pandas=2.2.1
   - python=3.11
