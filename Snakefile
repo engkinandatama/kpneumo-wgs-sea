@@ -399,7 +399,7 @@ rule quast:
     threads: config["threads"]["fastp"]
     resources:
         mem_mb = 4000
-    shell: "quast.py {input} -o {output} --threads {threads} 2> {log}"
+    shell: "quast.py {input} -o {output} --threads {threads} --min-contig 0 2> {log}"
 
 # ============================================================
 # --- 7. AMR PROFILING & TYPING ---
