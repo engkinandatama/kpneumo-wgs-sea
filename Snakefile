@@ -317,14 +317,14 @@ rule assemble:
     threads: config["threads"]["assemble"]
     resources:
         mem_mb = config["mem"]["assemble"]
-    run:
-        # SPAdes flag -m requires memory in GB, convert from MB
-        mem_gb = int(resources.mem_mb / 1000)
-        shell(
-            "spades.py -1 {input.r1} -2 {input.r2} "
-            "-o results/amr/{wildcards.sample}_assembly "
-            "--threads {threads} -m " + str(mem_gb) + " >> {log} 2>&1"
-        )
+    params:
+        mem_gb = lambda wildcards, resources: int(resources.mem_mb / 1000)
+    shell:
+        """
+        spades.py -1 {input.r1} -2 {input.r2} \
+            -o results/amr/{wildcards.sample}_assembly \
+            --threads {threads} -m {params.mem_gb} >> {log} 2>&1
+        """
 
 rule quast:
     input: "results/amr/{sample}_assembly/contigs.fasta"
