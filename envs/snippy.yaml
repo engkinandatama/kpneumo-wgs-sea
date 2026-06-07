@@ -1,0 +1,7 @@
+name: kpneumo_snippy
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - snippy

@@ -1,0 +1,12 @@
+name: kpneumo_amr_typing
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.9
+  - abricate
+  - ncbi-amrfinderplus
+  - resfinder
+  - kleborate
+  - mlst

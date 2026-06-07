@@ -66,6 +66,7 @@ rule download_sra:
         r2 = temp("data/raw/{sample}_2.fastq.gz")
     log: "logs/download/{sample}.log"
     benchmark: "benchmarks/download_sra/{sample}.tsv"
+    conda: "envs/sra.yaml"
     threads: config["threads"]["download"]
     resources:
         mem_mb = 4000
@@ -93,6 +94,7 @@ rule fastp:
         html = "results/qc/{sample}_fastp.html"
     log: "logs/qc/{sample}_fastp.log"
     benchmark: "benchmarks/fastp/{sample}.tsv"
+    conda: "envs/qc.yaml"
     threads: config["threads"]["fastp"]
     resources:
         mem_mb = 8000
@@ -110,6 +112,7 @@ rule fastqc:
     output: "results/qc/{sample}_{read}_fastqc.html"
     log: "logs/qc/{sample}_{read}_fastqc.log"
     benchmark: "benchmarks/fastqc/{sample}_{read}.tsv"
+    conda: "envs/qc.yaml"
     threads: 2
     resources:
         mem_mb = 2000
@@ -130,6 +133,7 @@ rule align:
         sorted_bam = "results/aligned/{sample}.sorted.bam"
     log: "logs/align/{sample}.log"
     benchmark: "benchmarks/align/{sample}.tsv"
+    conda: "envs/align.yaml"
     threads: config["threads"]["align"]
     resources:
         mem_mb = config["mem"]["align"]
@@ -151,6 +155,7 @@ rule bam_qc:
         qualimap = directory("results/qc/{sample}_qualimap")
     log: "logs/qc/{sample}_bamqc.log"
     benchmark: "benchmarks/bam_qc/{sample}.tsv"
+    conda: "envs/align.yaml"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -176,6 +181,7 @@ rule variant_calling:
         vcf = "results/variants/{sample}.raw.vcf"
     log: "logs/variants/{sample}_freebayes.log"
     benchmark: "benchmarks/variant_calling/{sample}.tsv"
+    conda: "envs/variants.yaml"
     resources:
         mem_mb = 8000
     shell: "freebayes -f {input.ref} {input.bam} > {output.vcf} 2> {log}"
@@ -187,6 +193,7 @@ rule filter_variants:
         vcf = "results/variants/{sample}.filtered.vcf"
     log: "logs/variants/{sample}_filter.log"
     benchmark: "benchmarks/filter_variants/{sample}.tsv"
+    conda: "envs/variants.yaml"
     resources:
         mem_mb = 2000
     shell: "vcffilter -f 'QUAL > 20 & DP > 10' {input.vcf} > {output.vcf} 2> {log}"
@@ -198,6 +205,7 @@ rule annotate_variants:
         vcf = "results/variants/{sample}.annotated.vcf"
     log: "logs/variants/{sample}_snpeff.log"
     benchmark: "benchmarks/annotate_variants/{sample}.tsv"
+    conda: "envs/variants.yaml"
     params:
         db = config["snpeff_db"]
     resources:
@@ -212,6 +220,7 @@ rule snpsift_filter:
         vcf = "results/variants/{sample}.highmod.vcf"
     log: "logs/variants/{sample}_snpsift.log"
     benchmark: "benchmarks/snpsift_filter/{sample}.tsv"
+    conda: "envs/variants.yaml"
     resources:
         mem_mb = 4000
     shell:
@@ -239,6 +248,7 @@ rule snippy:
         tab = "results/variants/{sample}_snippy/snps.tab"
     log: "logs/variants/{sample}_snippy.log"
     benchmark: "benchmarks/snippy/{sample}.tsv"
+    conda: "envs/snippy.yaml"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -263,6 +273,7 @@ rule snippy_core:
         tab  = "results/phylogeny/core.tab"
     log: "logs/phylogeny/snippy_core.log"
     benchmark: "benchmarks/snippy_core/core.tsv"
+    conda: "envs/snippy.yaml"
     resources:
         mem_mb = 8000
     params:
@@ -282,6 +293,7 @@ rule phylogeny:
     output: "results/phylogeny/core.tree"
     log: "logs/phylogeny/fasttree.log"
     benchmark: "benchmarks/phylogeny/tree.tsv"
+    conda: "envs/phylogeny.yaml"
     threads: config["threads"]["align"]
     resources:
         mem_mb = 8000
@@ -301,6 +313,7 @@ rule assemble:
         contigs = "results/amr/{sample}_assembly/contigs.fasta"
     log: "logs/assemble/{sample}.log"
     benchmark: "benchmarks/assemble/{sample}.tsv"
+    conda: "envs/assembly.yaml"
     threads: config["threads"]["assemble"]
     resources:
         mem_mb = config["mem"]["assemble"]
@@ -318,6 +331,7 @@ rule quast:
     output: directory("results/qc/{sample}_quast")
     log: "logs/qc/{sample}_quast.log"
     benchmark: "benchmarks/quast/{sample}.tsv"
+    conda: "envs/assembly.yaml"
     threads: config["threads"]["fastp"]
     resources:
         mem_mb = 4000
@@ -333,6 +347,7 @@ rule kleborate:
     output: "results/typing/{sample}_kleborate.txt"
     log: "logs/typing/{sample}_kleborate.log"
     benchmark: "benchmarks/kleborate/{sample}.tsv"
+    conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 4000
     shell: "kleborate --all -a {input} -o {output} 2> {log}"
@@ -343,6 +358,7 @@ rule mlst_typing:
     output: "results/typing/{sample}_mlst.txt"
     log: "logs/typing/{sample}_mlst.log"
     benchmark: "benchmarks/mlst_typing/{sample}.tsv"
+    conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 2000
     shell: "mlst --scheme klebsiella {input} > {output} 2> {log}"
@@ -352,6 +368,7 @@ rule abricate:
     output: "results/amr/{sample}_abricate.tab"
     log: "logs/amr/{sample}_abricate.log"
     benchmark: "benchmarks/abricate/{sample}.tsv"
+    conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 2000
     shell: "abricate --db card {input} > {output} 2> {log}"
@@ -361,6 +378,7 @@ rule amrfinderplus:
     output: "results/amr/{sample}_amrfinder.txt"
     log: "logs/amr/{sample}_amrfinder.log"
     benchmark: "benchmarks/amrfinderplus/{sample}.tsv"
+    conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 4000
     shell: "amrfinder -n {input} -O Klebsiella -o {output} 2> {log}"
@@ -372,6 +390,7 @@ rule resfinder:
     output: directory("results/amr/{sample}_resfinder")
     log: "logs/amr/{sample}_resfinder.log"
     benchmark: "benchmarks/resfinder/{sample}.tsv"
+    conda: "envs/amr_typing.yaml"
     params:
         db = config["resfinder_db"]
     resources:
@@ -393,6 +412,7 @@ rule abricate_summary:
     output: "results/amr/summary_abricate.tab"
     log: "logs/amr/abricate_summary.log"
     benchmark: "benchmarks/abricate_summary/summary.tsv"
+    conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 2000
     shell: "abricate --summary {input} > {output} 2> {log}"
@@ -408,6 +428,7 @@ rule multiqc:
     output: "results/qc/multiqc_report.html"
     log: "logs/qc/multiqc.log"
     benchmark: "benchmarks/multiqc/multiqc.tsv"
+    conda: "envs/qc.yaml"
     resources:
         mem_mb = 4000
     shell: "multiqc results/qc/ -o results/qc/ -n multiqc_report.html 2> {log}"

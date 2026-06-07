@@ -1,0 +1,10 @@
+name: kpneumo_variants
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - freebayes
+  - vcflib
+  - snpeff
+  - snpsift

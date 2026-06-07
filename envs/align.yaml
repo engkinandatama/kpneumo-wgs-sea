@@ -1,0 +1,9 @@
+name: kpneumo_align
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - bwa
+  - samtools
+  - qualimap

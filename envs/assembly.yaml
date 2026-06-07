@@ -1,0 +1,8 @@
+name: kpneumo_assembly
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - spades
+  - quast
