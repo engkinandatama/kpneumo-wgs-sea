@@ -19,7 +19,8 @@ onstart:
         "results/qc", "results/trimmed", "results/aligned",
         "results/variants", "results/amr", "results/typing", "results/phylogeny",
         "logs/download", "logs/qc", "logs/align", "logs/variants",
-        "logs/assemble", "logs/amr", "logs/typing", "logs/phylogeny"
+        "logs/assemble", "logs/amr", "logs/typing", "logs/phylogeny",
+        "benchmarks"
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
@@ -27,6 +28,7 @@ onstart:
     print(f"  K. pneumoniae WGS Pipeline — {len(SAMPLES)} samples")
     print(f"  Cores : {config['max_cores']} | RAM limit: {config['max_mem_mb']} MB")
     print(f"  Run   : snakemake --cores {config['max_cores']} --resources mem_mb={config['max_mem_mb']}")
+    print("  Benchmarking enabled: check files in benchmarks/")
     print("=" * 54)
 
 rule all:
@@ -63,6 +65,7 @@ rule download_sra:
         r1 = temp("data/raw/{sample}_1.fastq.gz"),
         r2 = temp("data/raw/{sample}_2.fastq.gz")
     log: "logs/download/{sample}.log"
+    benchmark: "benchmarks/download_sra/{sample}.tsv"
     threads: config["threads"]["download"]
     resources:
         mem_mb = 4000
@@ -89,6 +92,7 @@ rule fastp:
         json = "results/qc/{sample}_fastp.json",
         html = "results/qc/{sample}_fastp.html"
     log: "logs/qc/{sample}_fastp.log"
+    benchmark: "benchmarks/fastp/{sample}.tsv"
     threads: config["threads"]["fastp"]
     resources:
         mem_mb = 8000
@@ -124,6 +128,7 @@ rule align:
     output:
         sorted_bam = "results/aligned/{sample}.sorted.bam"
     log: "logs/align/{sample}.log"
+    benchmark: "benchmarks/align/{sample}.tsv"
     threads: config["threads"]["align"]
     resources:
         mem_mb = config["mem"]["align"]
@@ -286,6 +291,7 @@ rule assemble:
     output:
         contigs = "results/amr/{sample}_assembly/contigs.fasta"
     log: "logs/assemble/{sample}.log"
+    benchmark: "benchmarks/assemble/{sample}.tsv"
     threads: config["threads"]["assemble"]
     resources:
         mem_mb = config["mem"]["assemble"]

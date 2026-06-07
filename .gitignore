@@ -9,3 +9,4 @@ logs/
 *.vcf
 *.fasta
 *.fna
+benchmarks/
