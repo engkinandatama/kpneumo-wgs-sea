@@ -73,7 +73,7 @@ rule download_sra:
     shell:
         """
         # Retry prefetch up to 3 times to handle flaky network connections
-        for i in {1..3}; do
+        for i in {{1..3}}; do
             prefetch {wildcards.sample} -O data/raw/ &> {log} && break || sleep 5
         done
         
