@@ -72,7 +72,11 @@ rule download_sra:
         mem_mb = 4000
     shell:
         """
-        prefetch {wildcards.sample} -O data/raw/ &> {log}
+        # Retry prefetch up to 3 times to handle flaky network connections
+        for i in {1..3}; do
+            prefetch {wildcards.sample} -O data/raw/ &> {log} && break || sleep 5
+        done
+        
         fasterq-dump data/raw/{wildcards.sample} -O data/raw/ --split-files --threads {threads} &>> {log}
         
         # Handle single-end output where fasterq-dump might write <sample>.fastq
@@ -457,7 +461,13 @@ rule amrfinderplus:
     conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 4000
-    shell: "amrfinder -n {input} -O Klebsiella -o {output} 2> {log}"
+    shell:
+        """
+        if [ ! -d "$CONDA_PREFIX/share/amrfinderplus/data/latest" ]; then
+            amrfinder -u 2> {log}
+        fi
+        amrfinder -n {input} -O Klebsiella -o {output} 2>> {log}
+        """
 
 rule resfinder:
     """ResFinder: detects plasmid-mediated acquired resistance genes.
