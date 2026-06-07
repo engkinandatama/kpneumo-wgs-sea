@@ -5,7 +5,7 @@ channels:
   - defaults
 dependencies:
   # --- Base system ---
-  - python=3.10
+  - python=3.9
   - pandas=2.2.1
   - snakemake=7.32.4
   - sra-tools=3.0.10
