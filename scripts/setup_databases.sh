@@ -53,7 +53,7 @@ if [ ! -f "$SNPEFF_DB_DIR/genes.snpEffectPredictor.bin" ]; then
         -O "$SNPEFF_DB_DIR/genes.gff.gz"
         
     # Build database
-    conda run -n kpneumo_variants snpEff build -gff3 -v Klebsiella_pneumoniae_subsp_pneumoniae_HS11286
+    conda run -n kpneumo_variants snpEff build -gff3 -noCheckCds -noCheckProtein -v Klebsiella_pneumoniae_subsp_pneumoniae_HS11286
     echo "    SnpEff database built successfully."
 else
     echo "[2/6] SnpEff database already exists, skipping."
