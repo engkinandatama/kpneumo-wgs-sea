@@ -414,7 +414,12 @@ rule kleborate:
     conda: "envs/amr_typing.yaml"
     resources:
         mem_mb = 4000
-    shell: "kleborate --all -a {input} -o {output} 2> {log}"
+    shell:
+        """
+        kleborate -a {input} -o results/typing/{wildcards.sample}_out -p kpsc --trim_headers 2> {log}
+        mv results/typing/{wildcards.sample}_out/*_output.txt {output} 2>> {log}
+        rm -rf results/typing/{wildcards.sample}_out
+        """
 
 rule mlst_typing:
     """Standalone MLST cross-validation against Klebsiella scheme (Pasteur)."""
