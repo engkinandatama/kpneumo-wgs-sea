@@ -1,0 +1,22 @@
+samples: "config/samples.tsv"
+reference: "data/reference/Kpneumoniae_HS11286.fa"
+
+# Resource Management (Good Citizen Policy)
+# Total core 128 -> Pakai 32 (1/4) agar tidak panas & berbagi dengan yang lain
+max_threads: 32
+default_mem_mb: 2000
+
+# Rule specific threads
+threads:
+  download: 2
+  fastp: 4
+  align: 8
+  assemble: 8   # SPAdes diturunkan ke 8 agar bisa jalan beberapa tanpa overheat
+
+# Rule specific memory (dalam MB)
+mem:
+  assemble: 16000 # 16GB per sampel (Cukup untuk bakteri K. pneumoniae)
+  align: 8000     # 8GB
+
+kraken_db: "data/reference/kraken2_db"
+snpeff_db: "Klebsiella_pneumoniae_subsp_pneumoniae_HS11286"

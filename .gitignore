@@ -1,0 +1,11 @@
+.dev
+data/
+results/
+logs/
+.snakemake/
+*.fastq.gz
+*.bam
+*.bai
+*.vcf
+*.fasta
+*.fna
