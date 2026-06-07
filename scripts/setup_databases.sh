@@ -61,7 +61,8 @@ fi
 
 # ─── 3. AMRFinderPlus Database ────────────────────────────────────────────────
 echo "[3/6] Updating AMRFinderPlus database..."
-conda run -n kpneumo_amr_typing amrfinder -u
+mkdir -p data/reference/amrfinder_db
+conda run -n kpneumo_amr_typing amrfinder_update --database data/reference/amrfinder_db
 echo "    AMRFinderPlus database ready."
 
 # ─── 4. CARD Database (for ABRicate & RGI) ────────────────────────────────────

@@ -453,21 +453,32 @@ rule abricate:
         mem_mb = 2000
     shell: "abricate --db card {input} > {output} 2> {log}"
 
+rule download_amrfinder_db:
+    output:
+        directory("data/reference/amrfinder_db")
+    log:
+        "logs/amr/download_amrfinder_db.log"
+    conda:
+        "envs/amr_typing.yaml"
+    shell:
+        "amrfinder_update --database {output} > {log} 2>&1"
+
 rule amrfinderplus:
-    input: "results/amr/{sample}_assembly/contigs.fasta"
-    output: "results/amr/{sample}_amrfinder.txt"
-    log: "logs/amr/{sample}_amrfinder.log"
-    benchmark: "benchmarks/amrfinderplus/{sample}.tsv"
-    conda: "envs/amr_typing.yaml"
+    input:
+        fasta = "results/amr/{sample}_assembly/contigs.fasta",
+        db = "data/reference/amrfinder_db"
+    output:
+        "results/amr/{sample}_amrfinder.txt"
+    log:
+        "logs/amr/{sample}_amrfinder.log"
+    benchmark:
+        "benchmarks/amrfinderplus/{sample}.tsv"
+    conda:
+        "envs/amr_typing.yaml"
     resources:
         mem_mb = 4000
     shell:
-        """
-        if [ ! -d "$CONDA_PREFIX/share/amrfinderplus/data/latest" ]; then
-            amrfinder -u 2> {log}
-        fi
-        amrfinder -n {input} -O Klebsiella -o {output} 2>> {log}
-        """
+        "amrfinder -n {input.fasta} --database {input.db} -O Klebsiella -o {output} 2> {log}"
 
 rule resfinder:
     """ResFinder: detects plasmid-mediated acquired resistance genes.
