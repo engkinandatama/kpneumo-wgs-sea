@@ -54,15 +54,21 @@ bash scripts/setup_databases.sh
 ```
 
 ### 4. Run Pipeline
-Lakukan *dry-run* terlebih dahulu untuk memastikan semua rule terhubung:
+Lakukan *dry-run* terlebih dahulu untuk memastikan semua rule terhubung dengan benar:
 ```bash
-snakemake -n
+snakemake -n --cores 64 --resources mem_mb=60000
 ```
 
-Jalankan pipeline dengan batas 32 core (1/4 kapasitas HPC):
+Jalankan pipeline dengan resource limit (64 core, 60 GB RAM = 1/2 kapasitas HPC):
 ```bash
-snakemake --cores 32 --resources mem_mb=100000
+snakemake --cores 64 --resources mem_mb=60000
 ```
+
+> **Resource Policy:** Pipeline dikonfigurasi untuk menggunakan maksimal **64 core** dan **60 GB RAM** sekaligus. Snakemake akan otomatis mengatur batching berdasarkan resource ini.
+> - SPAdes (assembly): max **3 sampel paralel** (bottleneck RAM: 3×16GB=48GB)
+> - Alignment/Snippy: max **7 sampel paralel** (7×8GB=56GB)
+> - AMR tools: max **15+ sampel paralel** (ringan, 2-4GB)
+
 
 ### 5. Visualisasi Phylogenetic Tree (Opsional)
 Upload `results/phylogeny/core.tree` ke [Microreact](https://microreact.org) atau [iTOL](https://itol.embl.de) bersama metadata `config/samples.tsv` untuk peta interaktif.

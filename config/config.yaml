@@ -1,24 +1,33 @@
 samples: "config/samples.tsv"
 reference: "data/reference/Kpneumoniae_HS11286.fa"
 
-# Resource Management (Good Citizen Policy)
-# Total core 128 -> Pakai 32 (1/4) agar tidak panas & berbagi dengan yang lain
-max_threads: 32
-default_mem_mb: 2000
+# ─── HPC Resource Limits ────────────────────────────────────────────────────
+# HPC specs : 125 GB RAM | 128 cores
+# Policy    : max 1/2 RAM (60 GB) and 64 cores to share with other users
+# Run with  : snakemake --cores 64 --resources mem_mb=60000
+#
+# Parallelism estimate (15 samples):
+#   SPAdes (16GB, 8c) → max 3 concurrent  ← MEMORY BOTTLENECK
+#   BWA/Snippy (8GB, 8c) → max 7 concurrent
+#   FreeBayes (8GB, 1c) → max 7 concurrent
+#   AMR tools (2-4GB, 1c) → max 15-30 concurrent
+#
+max_cores: 64
+max_mem_mb: 60000   # 60 GB (half of 125 GB)
 
-# Rule specific threads
+# ─── Rule-specific Threads ──────────────────────────────────────────────────
 threads:
-  download: 2
-  fastp: 4
-  align: 8
-  assemble: 8   # SPAdes diturunkan ke 8 agar bisa jalan beberapa tanpa overheat
+  download: 2    # Network-bound, not CPU-bound
+  fastp: 4       # Fast enough with 4 threads
+  align: 8       # BWA sweet spot for bacterial genomes
+  assemble: 8    # SPAdes sweet spot; memory (16GB) is the real limiter
 
-# Rule specific memory (dalam MB)
+# ─── Rule-specific Memory (MB) ──────────────────────────────────────────────
 mem:
-  assemble: 16000 # 16GB per sampel (Cukup untuk bakteri K. pneumoniae)
-  align: 8000     # 8GB
+  assemble: 16000  # 16 GB — sufficient for K. pneumoniae (~5.5 Mbp genome)
+  align: 8000      #  8 GB — BWA + samtools sort buffer
 
-# Database paths (diisi oleh setup_databases.sh)
+# ─── Database Paths (populated by scripts/setup_databases.sh) ───────────────
 snpeff_db: "Klebsiella_pneumoniae_subsp_pneumoniae_HS11286"
-kraken_db: "data/reference/kraken2_db"      # Reserved for future contamination check
+kraken_db: "data/reference/kraken2_db"       # Reserved — enable in setup_databases.sh
 resfinder_db: "data/reference/resfinder_db"  # Plasmid-mediated resistance genes
