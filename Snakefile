@@ -422,8 +422,16 @@ rule kleborate:
         """
         kleborate -a {input} -o results/typing/{wildcards.sample}_out -p kpsc --trim_headers 2> {log}
         
-        if ls results/typing/{wildcards.sample}_out/*_output.txt >/dev/null 2>&1; then
-            mv results/typing/{wildcards.sample}_out/*_output.txt {output} 2>> {log}
+        main_out=""
+        for f in results/typing/{wildcards.sample}_out/*_output.txt; do
+            if [[ "$f" != *"hAMRonization"* ]]; then
+                main_out="$f"
+                break
+            fi
+        done
+        
+        if [ -n "$main_out" ] && [ -f "$main_out" ]; then
+            mv "$main_out" {output} 2>> {log}
         else
             printf "strain\\tspecies\\tN50\\tST\\tvirulence_score\\tresistance_score\\tnum_resistance_classes\\tnum_resistance_genes\\n" > {output}
             printf "%s\\tUnknown/failed_kp_check\\t0\\t-\\t-\\t-\\t-\\t-\\n" "{wildcards.sample}" >> {output}
