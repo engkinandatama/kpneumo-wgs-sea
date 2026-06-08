@@ -70,6 +70,8 @@ rule download_sra:
     threads: config["threads"]["download"]
     resources:
         mem_mb = 4000
+    params:
+        layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired"
     shell:
         """
         # Retry prefetch up to 3 times to handle flaky network connections
@@ -77,20 +79,29 @@ rule download_sra:
             prefetch {wildcards.sample} -O data/raw/ &> {log} && break || sleep 5
         done
         
-        fasterq-dump data/raw/{wildcards.sample} -O data/raw/ --split-files --threads {threads} &>> {log}
+        # Run fasterq-dump and verify it succeeds
+        if ! fasterq-dump data/raw/{wildcards.sample} -O data/raw/ --split-files --threads {threads} &>> {log}; then
+            echo "Error: fasterq-dump failed for {wildcards.sample}" >> {log}
+            exit 1
+        fi
         
         # Handle single-end output where fasterq-dump might write <sample>.fastq
         if [ -f data/raw/{wildcards.sample}.fastq ] && [ ! -f data/raw/{wildcards.sample}_1.fastq ]; then
             mv data/raw/{wildcards.sample}.fastq data/raw/{wildcards.sample}_1.fastq
         fi
         
-        # Ensure R1 file exists
-        if [ ! -f data/raw/{wildcards.sample}_1.fastq ]; then
-            touch data/raw/{wildcards.sample}_1.fastq
-        fi
-        
-        # Ensure R2 file exists as placeholder for single-end samples
-        if [ ! -f data/raw/{wildcards.sample}_2.fastq ]; then
+        # Verify files depending on layout
+        if [ "{params.layout}" = "paired" ]; then
+            if [ ! -s data/raw/{wildcards.sample}_1.fastq ] || [ ! -s data/raw/{wildcards.sample}_2.fastq ]; then
+                echo "Error: Paired-end download failed or empty FASTQ file(s) for {wildcards.sample}" >> {log}
+                exit 1
+            fi
+        else
+            if [ ! -s data/raw/{wildcards.sample}_1.fastq ]; then
+                echo "Error: Single-end download failed or empty FASTQ file for {wildcards.sample}" >> {log}
+                exit 1
+            fi
+            # Create placeholder for R2 if single-end
             touch data/raw/{wildcards.sample}_2.fastq
         fi
         
