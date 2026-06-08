@@ -302,7 +302,7 @@ rule snippy:
     params:
         layout = lambda wildcards: samples_df.loc[wildcards.sample, "layout"] if "layout" in samples_df.columns else "paired"
     resources:
-        mem_mb = 8000
+        mem_mb = 16000
     shell:
         """
         if [ "{params.layout}" = "paired" ]; then
