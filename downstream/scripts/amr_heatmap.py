@@ -17,7 +17,7 @@ import os
 
 def load_abricate_summary(path: str) -> pd.DataFrame:
     """Parse ABRicate summary table into a clean presence/absence matrix."""
-    df = pd.read_csv(path, sep="\t", comment="#", header=0)
+    df = pd.read_csv(path, sep="\t")
     # First column is file path, extract sample_id from filename
     df.index = df.iloc[:, 0].apply(
         lambda x: os.path.basename(x).replace("_abricate.tab", "")
