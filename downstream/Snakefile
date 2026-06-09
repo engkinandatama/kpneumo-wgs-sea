@@ -126,7 +126,7 @@ rule prokka:
     log:
         "logs/downstream/prokka/{sample}.log"
     conda:
-        "envs/prokka_roary.yaml"
+        "envs/prokka.yaml"
     threads: 4
     resources:
         mem_mb = 4000
@@ -339,7 +339,7 @@ rule roary:
     log:
         "logs/downstream/roary/roary.log"
     conda:
-        "envs/prokka_roary.yaml"
+        "envs/roary.yaml"
     threads: 16
     resources:
         mem_mb = 16000
