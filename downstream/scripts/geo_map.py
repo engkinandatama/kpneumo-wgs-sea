@@ -95,7 +95,22 @@ def main():
     total_per_country = samples_df.groupby("country").size()
 
     # ── Load world map ─────────────────────────────────────────────────────────
-    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    try:
+        world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    except (AttributeError, ValueError):
+        # Geopandas >= 1.0 fallback
+        url = "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
+        world = gpd.read_file(url)
+        # Rename columns to match old naturalearth_lowres
+        rename_mapper = {
+            "POP_EST": "pop_est", 
+            "CONTINENT": "continent", 
+            "ADMIN": "name", 
+            "ADM0_A3": "iso_a3", 
+            "GDP_MD": "gdp_md_est"
+        }
+        world.rename(columns=rename_mapper, inplace=True)
+
     sea_iso = list(SEA_COUNTRIES.values())
     sea_map = world[world["iso_a3"].isin(sea_iso)].copy()
 
