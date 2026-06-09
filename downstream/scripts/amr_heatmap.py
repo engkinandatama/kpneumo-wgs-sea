@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
+from matplotlib.colors import ListedColormap
 import os
 
 # ============================================================
@@ -95,8 +96,8 @@ def main():
     fig_height = max(8, len(matrix) * 0.45)
     fig_width  = max(14, len(col_order) * 0.28)
     
-    # Custom color map: slate-white (absent) -> deep navy (present)
-    cmap = sns.color_palette(["#f8fafc", "#1e3a8a"], as_cmap=True)
+    # Custom binary color map using ListedColormap: slate-white (absent) -> deep navy (present)
+    cmap = ListedColormap(["#f8fafc", "#1e3a8a"])
 
     print("[amr_heatmap] Plotting clustered resistome heatmap ...")
     
@@ -140,7 +141,7 @@ def main():
     # Add legends for row annotations
     # 1. Country legend
     country_patches = [
-        mpatches.Patch(color=c, label=k)
+        mpatches.Patch(facecolor=c, edgecolor=c, label=k)
         for k, c in country_colors.items()
     ]
     g.fig.legend(
@@ -159,7 +160,7 @@ def main():
         "Klebsiella quasipneumoniae subsp. quasipneumoniae": "K. quasipneumoniae"
     }
     species_patches = [
-        mpatches.Patch(color=c, label=species_labels.get(k, k))
+        mpatches.Patch(facecolor=c, edgecolor=c, label=species_labels.get(k, k))
         for k, c in species_colors.items()
     ]
     g.fig.legend(
@@ -174,8 +175,8 @@ def main():
 
     # 3. Gene presence/absence legend
     amr_patches = [
-        mpatches.Patch(color="#1e3a8a", label="Present"),
-        mpatches.Patch(color="#f8fafc", edgecolor="#cbd5e1", label="Absent")
+        mpatches.Patch(facecolor="#1e3a8a", edgecolor="#1e3a8a", label="Present"),
+        mpatches.Patch(facecolor="#f8fafc", edgecolor="#cbd5e1", label="Absent")
     ]
     g.fig.legend(
         handles=amr_patches,
