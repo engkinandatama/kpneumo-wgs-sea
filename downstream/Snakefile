@@ -349,6 +349,7 @@ rule roary:
         extra    = "-e -n -r -v",
     shell:
         """
+        rm -rf {params.outdir}
         roary \
             -p {threads} \
             -i {params.identity} \
@@ -356,10 +357,6 @@ rule roary:
             {params.extra} \
             {input.gffs} \
             > {log} 2>&1
-        # Ensure output files exist even if Roary writes them with different names
-        ls {params.outdir}/ >> {log} 2>&1
-        [ -f {params.outdir}/summary_statistics.txt ] || \
-            echo "Roary summary not found" > {output.txt}
         """
 
 
