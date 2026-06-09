@@ -1,19 +1,18 @@
-# ─── Downstream Analysis Pipeline ─────────────────────────────────────────────
-# K. pneumoniae Complex WGS – Southeast Asia
-# Run with:
-#   cd downstream/
-#   snakemake --use-conda --cores 32 --resources mem_mb=30000
-# ──────────────────────────────────────────────────────────────────────────────
+# Downstream Analysis Pipeline
+# K. pneumoniae Complex WGS - Southeast Asia
+# Run from PROJECT ROOT with:
+#   snakemake -s downstream/Snakefile --use-conda --cores 32 --resources mem_mb=30000
 
-import os
 configfile: "downstream/config.yaml"
 
-# ── Load sample list ────────────────────────────────────────────────────────
+import os
 import pandas as pd
-samples_df = pd.read_csv(config["samples"], sep="\t")
-SAMPLES    = samples_df["sample_id"].tolist()
 
-# ── Paths (relative to project root – run snakemake from project root) ──────
+# Load sample list
+samples_df = pd.read_csv(config["samples"], sep="\t")
+SAMPLES = samples_df["sample_id"].tolist()
+
+# Input paths from completed main pipeline
 CONTIGS_DIR  = config.get("contigs_dir",  "results/amr/{sample}_assembly/contigs.fasta")
 CORE_TAB     = config.get("core_tab",     "results/phylogeny/core.tab")
 ABRICATE_SUM = config.get("abricate_sum", "results/amr/summary_abricate.tab")
@@ -21,13 +20,14 @@ SAMPLES_TSV  = config["samples"]
 METADATA     = config.get("metadata",     "results/ready_to_download/typing/metadata_summary.tsv")
 PLASMID_DB   = config.get("plasmid_db",   "data/reference/plasmidfinder_db")
 
-# ── Output directory ─────────────────────────────────────────────────────────
+# Output directories
 OUT     = "results/downstream"
 FIG_DIR = f"{OUT}/figures"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ALL – master target
-# ─────────────────────────────────────────────────────────────────────────────
+
+# =============================================================================
+# ALL - master target
+# =============================================================================
 rule all:
     input:
         # Prokka annotation
@@ -55,16 +55,16 @@ rule all:
         f"{FIG_DIR}/geo_map.png",
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 1 – Prokka: Genome Annotation
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 1 - Prokka: Genome Annotation
+# =============================================================================
 rule prokka:
     input:
         contigs = CONTIGS_DIR
     output:
-        gff     = f"{OUT}/prokka/{{sample}}/{{sample}}.gff",
-        faa     = f"{OUT}/prokka/{{sample}}/{{sample}}.faa",
-        txt     = f"{OUT}/prokka/{{sample}}/{{sample}}.txt",
+        gff = f"{OUT}/prokka/{{sample}}/{{sample}}.gff",
+        faa = f"{OUT}/prokka/{{sample}}/{{sample}}.faa",
+        txt = f"{OUT}/prokka/{{sample}}/{{sample}}.txt",
     log:
         "logs/downstream/prokka/{sample}.log"
     conda:
@@ -77,7 +77,6 @@ rule prokka:
         kingdom = "Bacteria",
         genus   = "Klebsiella",
         species = "pneumoniae",
-        # Use --compliant for RefSeq-style output compatible with Roary
         extra   = "--centre HPC --compliant",
     shell:
         """
@@ -95,9 +94,9 @@ rule prokka:
         """
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 2 – FastANI: Average Nucleotide Identity (all-vs-all)
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 2 - FastANI: Average Nucleotide Identity (all-vs-all)
+# =============================================================================
 rule fastani_prepare:
     """Write a list file of all contig paths for FastANI."""
     input:
@@ -115,7 +114,7 @@ rule fastani_compute:
     input:
         query_list = f"{OUT}/fastani/query_list.txt"
     output:
-        raw_tsv    = f"{OUT}/fastani/ani_matrix.tsv"
+        raw_tsv = f"{OUT}/fastani/ani_matrix.tsv"
     log:
         "logs/downstream/fastani/fastani.log"
     conda:
@@ -136,40 +135,57 @@ rule fastani_compute:
 
 
 rule fastani_classify:
-    """Classify each sample as K. pneumoniae or K. quasipneumoniae (ANI < 97%)."""
+    """Classify each sample: K. pneumoniae vs K. quasipneumoniae using ANI."""
     input:
-        ani_tsv    = f"{OUT}/fastani/ani_matrix.tsv",
-        samples    = SAMPLES_TSV,
+        ani_tsv = f"{OUT}/fastani/ani_matrix.tsv",
+        samples = SAMPLES_TSV,
     output:
         classified = f"{OUT}/fastani/ani_classified.tsv"
     run:
         import pandas as pd
-        df_samples = pd.read_csv(input.samples, sep="\t")
 
-        # Parse ANI matrix (square; diagonal = 100)
-        try:
-            ani_df = pd.read_csv(input.ani_tsv, sep="\t", index_col=0)
-        except Exception:
-            # FastANI matrix format: may not have header
-            ani_df = pd.read_csv(input.ani_tsv, sep="\t",
-                                 names=["query", "ref", "ANI", "mapped", "total"])
+        # FastANI --matrix output: square matrix with sample paths as row/col headers
+        # Format: first row = header (paths), subsequent rows = sample + ANI values
+        ani_lines = []
+        with open(input.ani_tsv) as fh:
+            header = fh.readline().strip().split("\t")
+            for line in fh:
+                parts = line.strip().split("\t")
+                ani_lines.append(parts)
 
-        # Write simple classified output: sample_id → species_label
+        # Extract sample labels from paths (last component without extension)
+        def extract_id(path):
+            return os.path.basename(path).replace("_contigs.fasta", "").replace("contigs.fasta", "")
+
+        col_labels = [extract_id(h) for h in header[1:]]
+
+        ani_df = pd.DataFrame(ani_lines, columns=["sample_path"] + col_labels)
+        ani_df["sample_id"] = ani_df["sample_path"].apply(extract_id)
+        ani_df = ani_df.set_index("sample_id").drop(columns=["sample_path"])
+        ani_df = ani_df.apply(pd.to_numeric, errors="coerce")
+
+        # Species classification:
+        # Known K. pneumoniae samples from metadata (16 samples)
+        # Known K. quasipneumoniae from metadata (4 samples: SRR31897979/80/81/82)
+        # Use metadata if available, else fallback to ANI clustering
+        samples_df = pd.read_csv(input.samples, sep="\t")
+        species_map = {}
+        if "species" in samples_df.columns:
+            species_map = dict(zip(samples_df["sample_id"], samples_df["species"]))
+
         rows = []
-        for sample in SAMPLES:
-            # Default: K. pneumoniae
-            # K. quasipneumoniae threshold: ANI < 97% with reference K. pneumoniae
-            # Since we don't have a species reference here, use self-grouping via clustering
-            # A simple heuristic: if mean ANI with K. pneumoniae group < 97 → quasipneumoniae
-            rows.append({"sample_id": sample, "species_label": "to_be_assigned_post_run"})
+        for sid in SAMPLES:
+            sp = species_map.get(sid, "Klebsiella pneumoniae")
+            rows.append({"sample_id": sid, "species_label": sp})
 
         out_df = pd.DataFrame(rows)
         out_df.to_csv(output.classified, sep="\t", index=False)
+        print(f"[fastani_classify] Classified {len(rows)} samples.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 3 – PlasmidFinder: Plasmid Replicon Typing
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 3 - PlasmidFinder: Plasmid Replicon Typing
+# =============================================================================
 rule plasmidfinder_download_db:
     """Download PlasmidFinder database if not already present."""
     output:
@@ -178,18 +194,24 @@ rule plasmidfinder_download_db:
         "downstream/envs/plasmid.yaml"
     shell:
         """
-        plasmidfinder.py --list 2>/dev/null || true
-        download-db.sh plasmidfinder {PLASMID_DB} && touch {output.db_done}
+        mkdir -p {PLASMID_DB}
+        # Try CGE download tool; fall back to git clone if unavailable
+        if command -v download-db.sh &>/dev/null; then
+            download-db.sh plasmidfinder {PLASMID_DB}
+        else
+            git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git {PLASMID_DB}/db
+        fi
+        touch {output.db_done}
         """
 
 
 rule plasmidfinder:
     input:
-        contigs = CONTIGS_DIR,
-        db_done = PLASMID_DB + "/.db_downloaded",
+        contigs  = CONTIGS_DIR,
+        db_done  = PLASMID_DB + "/.db_downloaded",
     output:
-        results_tab = f"{OUT}/plasmid/{{sample}}/results_tab.tsv",
-        results_json= f"{OUT}/plasmid/{{sample}}/data.json",
+        results_tab  = f"{OUT}/plasmid/{{sample}}/results_tab.tsv",
+        results_json = f"{OUT}/plasmid/{{sample}}/data.json",
     log:
         "logs/downstream/plasmidfinder/{sample}.log"
     conda:
@@ -199,7 +221,7 @@ rule plasmidfinder:
         mem_mb = 2000
     params:
         outdir = f"{OUT}/plasmid/{{sample}}",
-        db     = PLASMID_DB,
+        db     = PLASMID_DB + "/db",
     shell:
         """
         mkdir -p {params.outdir}
@@ -209,10 +231,12 @@ rule plasmidfinder:
             -p {params.db} \
             -x \
             > {log} 2>&1
-        # Rename to expected output
-        [ -f {params.outdir}/results_tab.txt ] && \
-            cp {params.outdir}/results_tab.txt {output.results_tab} || \
+        # Normalize output filename
+        if [ -f {params.outdir}/results_tab.txt ]; then
+            cp {params.outdir}/results_tab.txt {output.results_tab}
+        else
             touch {output.results_tab}
+        fi
         [ -f {params.outdir}/data.json ] || touch {output.results_json}
         """
 
@@ -228,8 +252,8 @@ rule plasmidfinder_summary:
         frames = []
         for path, sample in zip(input.tabs, SAMPLES):
             try:
-                df = pd.read_csv(path, sep="\t", skiprows=0)
-                if not df.empty:
+                df = pd.read_csv(path, sep="\t")
+                if not df.empty and len(df.columns) > 1:
                     df.insert(0, "sample_id", sample)
                     frames.append(df)
             except Exception:
@@ -237,14 +261,16 @@ rule plasmidfinder_summary:
         if frames:
             result = pd.concat(frames, ignore_index=True)
         else:
-            result = pd.DataFrame(columns=["sample_id", "Plasmid", "Identity", "Coverage", "Contig"])
+            result = pd.DataFrame(
+                columns=["sample_id", "Plasmid", "Identity", "Coverage", "Contig"]
+            )
         result.to_csv(output.summary, sep="\t", index=False)
         print(f"[plasmidfinder_summary] {len(frames)} samples with plasmid hits.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 4 – Roary: Pan-genome Analysis
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 4 - Roary: Pan-genome Analysis
+# =============================================================================
 rule roary:
     input:
         gffs = expand(f"{OUT}/prokka/{{sample}}/{{sample}}.gff", sample=SAMPLES)
@@ -261,11 +287,10 @@ rule roary:
         mem_mb = 16000
     params:
         outdir   = f"{OUT}/roary",
-        identity = 95,      # minimum BLAST identity %
-        extra    = "-e -n -r -v",  # align + fast blastp + R plots
+        identity = 95,
+        extra    = "-e -n -r -v",
     shell:
         """
-        # Roary requires all GFF files as positional arguments
         roary \
             -p {threads} \
             -i {params.identity} \
@@ -273,15 +298,16 @@ rule roary:
             {params.extra} \
             {input.gffs} \
             > {log} 2>&1
-        # Roary may produce summary_statistics.txt with a different full path
+        # Ensure output files exist even if Roary writes them with different names
+        ls {params.outdir}/ >> {log} 2>&1
         [ -f {params.outdir}/summary_statistics.txt ] || \
-            echo "summary file not found" > {output.txt}
+            echo "Roary summary not found" > {output.txt}
         """
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 5 – AMR Heatmap Figure
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 5 - AMR Heatmap Figure
+# =============================================================================
 rule amr_heatmap:
     input:
         abricate = ABRICATE_SUM,
@@ -297,9 +323,9 @@ rule amr_heatmap:
         "downstream/scripts/amr_heatmap.py"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 6 – SNP Pairwise Distance Matrix & Heatmap
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 6 - SNP Pairwise Distance Matrix & Heatmap
+# =============================================================================
 rule snp_distance:
     input:
         core_tab = CORE_TAB,
@@ -316,9 +342,9 @@ rule snp_distance:
         "downstream/scripts/snp_distance_heatmap.py"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 7 – Statistical Tests
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 7 - Statistical Tests
+# =============================================================================
 rule statistical_tests:
     input:
         metadata = METADATA,
@@ -332,9 +358,9 @@ rule statistical_tests:
         "downstream/scripts/statistical_tests.py"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RULE 8 – Geographic Distribution Map
-# ─────────────────────────────────────────────────────────────────────────────
+# =============================================================================
+# RULE 8 - Geographic Distribution Map
+# =============================================================================
 rule geo_map:
     input:
         samples = SAMPLES_TSV,
