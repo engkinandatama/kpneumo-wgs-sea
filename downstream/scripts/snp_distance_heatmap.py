@@ -15,12 +15,15 @@ import sys
 def parse_core_tab(path: str) -> pd.DataFrame:
     """
     Compute pairwise SNP distance matrix from snippy-core core.tab file.
-    core.tab columns: CHR  POS  Reference  Sample1  Sample2 ...
+    core.tab columns: CHR  POS  REF  Sample1_snippy  Sample2_snippy ...
     Each cell is the nucleotide call at that position.
     """
     df = pd.read_csv(path, sep="\t", low_memory=False)
+    # Rename columns to remove '_snippy' suffix to match sample_id
+    df.columns = [c.replace("_snippy", "") for c in df.columns]
+    
     # Drop positional metadata columns
-    meta_cols = ["CHR", "POS", "Reference"]
+    meta_cols = ["CHR", "POS", "REF"]
     sample_cols = [c for c in df.columns if c not in meta_cols]
     genotype_matrix = df[sample_cols]
 
