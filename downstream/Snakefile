@@ -245,21 +245,21 @@ rule fastani_classify:
 # RULE 3 - PlasmidFinder: Plasmid Replicon Typing
 # =============================================================================
 rule plasmidfinder_download_db:
-    """Download PlasmidFinder database if not already present."""
+    """Download PlasmidFinder database and index it for BLAST."""
     output:
         db_done = PLASMID_DB + "/.db_downloaded"
     conda:
         "envs/plasmid.yaml"
     shell:
         """
+        rm -rf {PLASMID_DB}/db
         mkdir -p {PLASMID_DB}
-        # Try CGE download tool; fall back to git clone if unavailable
-        if command -v download-db.sh &>/dev/null; then
-            download-db.sh plasmidfinder {PLASMID_DB}
-        else
-            git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git {PLASMID_DB}/db
-        fi
-        touch {output.db_done}
+        git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git {PLASMID_DB}/db
+        cd {PLASMID_DB}/db
+        for f in *.fsa; do
+            makeblastdb -in "$f" -dbtype nucl
+        done
+        touch ../.db_downloaded
         """
 
 
