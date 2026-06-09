@@ -369,8 +369,9 @@ rule phylogeny:
         mem_mb = 8000
     shell:
         """
+        export OMP_NUM_THREADS={threads}
         if command -v FastTreeMP &> /dev/null; then
-            FastTreeMP -gtr -nt -threads {threads} {input} > {output} 2> {log}
+            FastTreeMP -gtr -nt {input} > {output} 2> {log}
         else
             FastTree -gtr -nt {input} > {output} 2> {log}
         fi
