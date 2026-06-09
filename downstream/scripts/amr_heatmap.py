@@ -125,7 +125,7 @@ def main():
         linewidths=0.4,
         linecolor="#cbd5e1",
         figsize=(fig_width, fig_height),
-        cbar=False,
+        cbar_pos=None,
         tree_kws={"linewidths": 0.8},
     )
 
