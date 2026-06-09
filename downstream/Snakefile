@@ -361,12 +361,14 @@ rule roary:
 
 
 # =============================================================================
+# =============================================================================
 # RULE 5 - AMR Heatmap Figure
 # =============================================================================
 rule amr_heatmap:
     input:
         abricate = ABRICATE_SUM,
         samples  = SAMPLES_TSV,
+        metadata = f"{OUT}/metadata/metadata_summary.tsv",
     output:
         pdf = f"{FIG_DIR}/amr_heatmap.pdf",
         png = f"{FIG_DIR}/amr_heatmap.png",
@@ -385,6 +387,7 @@ rule snp_distance:
     input:
         core_tab = CORE_TAB,
         samples  = SAMPLES_TSV,
+        metadata = f"{OUT}/metadata/metadata_summary.tsv",
     output:
         tsv = f"{OUT}/snp_distance/snp_matrix.tsv",
         pdf = f"{OUT}/snp_distance/snp_heatmap.pdf",

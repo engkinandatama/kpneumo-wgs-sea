@@ -1,12 +1,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import seaborn as sns
-import sys
+from matplotlib.colors import SymLogNorm
+import os
 
 # ============================================================
-# SNP Pairwise Distance Heatmap
+# Publication-Quality SNP Pairwise Distance Clustermap
 # Input : results/phylogeny/core.tab  (snippy-core output)
+#         config/samples.tsv
+#         results/downstream/metadata/metadata_summary.tsv
 # Output: results/downstream/snp_distance/snp_matrix.tsv
 #         results/downstream/snp_distance/snp_heatmap.pdf
 #         results/downstream/snp_distance/snp_heatmap.png
@@ -15,11 +19,9 @@ import sys
 def parse_core_tab(path: str) -> pd.DataFrame:
     """
     Compute pairwise SNP distance matrix from snippy-core core.tab file.
-    core.tab columns: CHR  POS  REF  Sample1_snippy  Sample2_snippy ...
-    Each cell is the nucleotide call at that position.
     """
     df = pd.read_csv(path, sep="\t", low_memory=False)
-    # Rename columns to remove '_snippy' suffix to match sample_id
+    # Rename columns to remove '_snippy' suffix
     df.columns = [c.replace("_snippy", "") for c in df.columns]
     
     # Drop positional metadata columns
@@ -45,70 +47,112 @@ def main():
     out_pdf  = snakemake.output.pdf
     out_png  = snakemake.output.png
 
-    samples_path = snakemake.input.samples
-    samples_df   = pd.read_csv(samples_path, sep="\t").set_index("sample_id")
+    samples_path  = snakemake.input.samples
+    metadata_path = snakemake.input.metadata
+
+    samples_df = pd.read_csv(samples_path, sep="\t").set_index("sample_id")
+    meta_df    = pd.read_csv(metadata_path, sep="\t").set_index("sample_id")
 
     print("[snp_distance] Parsing core.tab ...")
     dist_matrix = parse_core_tab(core_tab)
     dist_matrix.to_csv(out_tsv, sep="\t")
     print(f"[snp_distance] Matrix saved → {out_tsv}")
 
-    # Sort by country for visual grouping
-    common = [s for s in dist_matrix.index if s in samples_df.index]
-    order = sorted(common,
-                   key=lambda s: (samples_df.loc[s, "country"], s))
-    dist_matrix = dist_matrix.loc[order, order]
+    # Set publication-quality font
+    sns.set_theme(style="white", rc={"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans", "Arial"]})
 
+    # Muted, professional palette for metadata annotations
     country_colors = {
-        "Indonesia": "#4285F4",
-        "Malaysia":  "#34A853",
-        "Vietnam":   "#FBBC05",
-        "Thailand":  "#EA4335",
+        "Indonesia": "#3c8dbc",  # Steel blue
+        "Malaysia":  "#00a65a",  # Emerald green
+        "Vietnam":   "#f39c12",  # Amber
+        "Thailand":  "#dd4b39",  # Crimson
     }
-    row_colors = dist_matrix.index.map(
-        lambda s: country_colors.get(samples_df.loc[s, "country"]
-                                     if s in samples_df.index else "Unknown", "#999999")
+    species_colors = {
+        "Klebsiella pneumoniae": "#2c3e50",  # Muted slate/navy
+        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "#16a085",  # Muted teal
+    }
+
+    # Map row and column annotations
+    annot_df = pd.DataFrame(index=dist_matrix.index)
+    annot_df["Country"] = dist_matrix.index.map(
+        lambda s: country_colors.get(samples_df.loc[s, "country"] if s in samples_df.index else "Unknown", "#999999")
+    )
+    annot_df["Species"] = dist_matrix.index.map(
+        lambda s: species_colors.get(meta_df.loc[s, "species"] if s in meta_df.index else "Unknown", "#7f8c8d")
     )
 
-    n = len(order)
-    fig, ax = plt.subplots(figsize=(max(10, n * 0.55), max(8, n * 0.5)))
+    # Use SymLogNorm to display both tight outbreak links (<10 SNPs)
+    # and species-level differences (>180,000 SNPs) in the same color space.
+    max_val = dist_matrix.values.max()
+    norm = SymLogNorm(linthresh=10, linscale=1.0, vmin=0, vmax=max_val, base=10)
 
-    cmap = sns.color_palette("YlOrRd", as_cmap=True)
-    heatmap = sns.heatmap(
-        dist_matrix, ax=ax,
-        cmap=cmap,
-        annot=(n <= 25),          # show numbers if matrix is small enough
-        fmt="d",
-        linewidths=0.3,
-        linecolor="#eeeeee",
-        cbar_kws={"label": "Pairwise SNP distance", "shrink": 0.6},
+    print("[snp_distance] Plotting clustered heatmap with logarithmic normalization ...")
+    
+    # Generate hierarchical clustermap
+    g = sns.clustermap(
+        dist_matrix,
+        row_colors=annot_df[["Species", "Country"]],
+        col_colors=annot_df[["Species", "Country"]],
+        cmap="rocket_r",       # Light colors for low distance, dark purple/black for high distance
+        norm=norm,
+        linewidths=0.2,
+        linecolor="#f1f5f9",
+        figsize=(11, 10),
+        cbar_kws={"label": "Pairwise SNP distance (log scale)", "shrink": 0.5},
+        tree_kws={"linewidths": 0.8},
     )
 
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90, fontsize=7)
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0,  fontsize=7)
-    ax.set_title(
-        "Pairwise Core-genome SNP Distance Matrix\n"
-        "K. pneumoniae Complex (n=20)",
-        fontsize=11, fontweight="bold", pad=10
+    # Rotate tick labels and adjust font sizes
+    plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90, fontsize=8)
+    plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0, fontsize=8)
+
+    # Adjust layout to make space for legends
+    g.fig.subplots_adjust(top=0.92, right=0.82)
+    g.fig.suptitle(
+        "Clustered Core-genome Pairwise SNP Distance Heatmap\n"
+        "Klebsiella pneumoniae Complex (n=20)",
+        fontsize=12, fontweight="bold", y=0.98
     )
 
-    # Colour y-tick labels by country
-    for tick_label, color in zip(ax.get_yticklabels(), row_colors):
-        tick_label.set_color(color)
-
-    # Country legend
-    import matplotlib.patches as mpatches
-    legend_patches = [
+    # Add legends for row colors
+    # 1. Country legend
+    country_patches = [
         mpatches.Patch(color=c, label=k)
         for k, c in country_colors.items()
     ]
-    ax.legend(handles=legend_patches, title="Country",
-              loc="upper left", bbox_to_anchor=(1.15, 1),
-              frameon=True, fontsize=8, title_fontsize=9)
+    g.fig.legend(
+        handles=country_patches,
+        title="Country of Origin",
+        loc="upper right",
+        bbox_to_anchor=(0.99, 0.85),
+        frameon=True,
+        fontsize=8,
+        title_fontsize=9
+    )
 
-    plt.tight_layout()
-    fig.savefig(out_pdf, dpi=300, bbox_inches="tight")
-    fig.savefig(out_png, dpi=300, bbox_inches="tight")
+    # 2. Species legend (simplified labels)
+    species_labels = {
+        "Klebsiella pneumoniae": "K. pneumoniae",
+        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "K. quasipneumoniae"
+    }
+    species_patches = [
+        mpatches.Patch(color=c, label=species_labels.get(k, k))
+        for k, c in species_colors.items()
+    ]
+    g.fig.legend(
+        handles=species_patches,
+        title="Species Identification",
+        loc="upper right",
+        bbox_to_anchor=(0.99, 0.70),
+        frameon=True,
+        fontsize=8,
+        title_fontsize=9
+    )
+
+    # Save to outputs
+    g.fig.savefig(out_pdf, dpi=300, bbox_inches="tight")
+    g.fig.savefig(out_png, dpi=300, bbox_inches="tight")
     print(f"[snp_distance] Heatmap saved → {out_pdf} and {out_png}")
 
 
