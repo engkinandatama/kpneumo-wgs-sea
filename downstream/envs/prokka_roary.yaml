@@ -1,0 +1,8 @@
+name: kpneumo_prokka_roary
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - prokka=1.14.6
+  - roary=3.13.0

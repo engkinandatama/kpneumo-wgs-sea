@@ -1,0 +1,9 @@
+name: kpneumo_plasmid
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.9
+  - plasmidfinder=2.1.6
+  - blast=2.15

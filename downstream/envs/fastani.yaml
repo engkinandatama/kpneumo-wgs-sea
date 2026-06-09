@@ -1,0 +1,7 @@
+name: kpneumo_fastani
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - fastani=1.34

@@ -1,0 +1,40 @@
+# ─── Downstream Analysis Configuration ────────────────────────────────────────
+# Run from the PROJECT ROOT (not from inside downstream/) with:
+#   snakemake -s downstream/Snakefile --use-conda --cores 32 --resources mem_mb=30000
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Sample manifest (shared with main Snakefile) ─────────────────────────────
+samples: "config/samples.tsv"
+
+# ── Input paths from completed main pipeline ──────────────────────────────────
+contigs_dir: "results/amr/{sample}_assembly/contigs.fasta"
+core_tab:    "results/phylogeny/core.tab"
+abricate_sum:"results/amr/summary_abricate.tab"
+metadata:    "results/ready_to_download/typing/metadata_summary.tsv"
+
+# ── PlasmidFinder database path ───────────────────────────────────────────────
+# The pipeline will auto-download this if not present
+plasmid_db:  "data/reference/plasmidfinder_db"
+
+# ─── HPC Resource Limits ──────────────────────────────────────────────────────
+# These downstream analyses are lighter than the main pipeline.
+# HPC specs: 125 GB RAM | 128 cores
+# Policy   : use at most 32 cores and 30 GB for downstream
+#
+# Parallelism estimate (20 samples):
+#   Prokka  (4GB, 4c) → max 5-7 concurrent   <- memory bottleneck
+#   Roary   (16GB, 16c) → 1 at a time        <- waits for all Prokka
+#   FastANI (8GB, 16c)  → fast, ~5 minutes
+#   PlasmidFinder (2GB, 1c) → max 15 concurrent
+#
+max_cores: 32
+max_mem_mb: 30000
+
+# ─── Roary settings ───────────────────────────────────────────────────────────
+roary:
+  identity: 95    # minimum % BLAST identity to cluster genes (default: 95%)
+
+# ─── FastANI settings ─────────────────────────────────────────────────────────
+fastani:
+  # ANI threshold to classify as different species (K. quasipneumoniae)
+  species_threshold: 97.0
