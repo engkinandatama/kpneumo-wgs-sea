@@ -36,6 +36,20 @@ def filter_genes(matrix: pd.DataFrame, min_presence: int = 1) -> pd.DataFrame:
 
 
 def main():
+    global snakemake
+    if 'snakemake' not in globals():
+        class MockSnakemake:
+            input = type('Input', (), {
+                'abricate': 'results/amr/summary_abricate.tab',
+                'samples': 'config/samples.tsv',
+                'metadata': 'results/downstream/metadata/metadata_summary.tsv'
+            })()
+            output = type('Output', (), {
+                'pdf': 'results/downstream/figures/amr_heatmap.pdf',
+                'png': 'results/downstream/figures/amr_heatmap.png'
+            })()
+        snakemake = MockSnakemake()
+
     abricate_path = snakemake.input.abricate
     samples_path  = snakemake.input.samples
     metadata_path = snakemake.input.metadata
