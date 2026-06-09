@@ -1,7 +1,7 @@
 name: kpneumo_roary
 channels:
-  - conda-forge
   - bioconda
+  - conda-forge
   - defaults
 dependencies:
   - perl=5.26.2
