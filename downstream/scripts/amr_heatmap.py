@@ -26,7 +26,7 @@ def load_abricate_summary(path: str) -> pd.DataFrame:
     # Keep only gene columns (drop NUM_FOUND)
     df = df.drop(columns=["NUM_FOUND"], errors="ignore")
     # Convert presence/absence: "." = 0, numeric = 1
-    df = df.applymap(lambda x: 0 if x == "." or pd.isna(x) else 1)
+    df = df.apply(lambda col: col.map(lambda x: 0 if x == "." or pd.isna(x) else 1))
     return df
 
 
