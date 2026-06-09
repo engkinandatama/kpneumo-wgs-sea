@@ -126,7 +126,7 @@ rule prokka:
     log:
         "logs/downstream/prokka/{sample}.log"
     conda:
-        "downstream/envs/prokka_roary.yaml"
+        "envs/prokka_roary.yaml"
     threads: 4
     resources:
         mem_mb = 4000
@@ -176,7 +176,7 @@ rule fastani_compute:
     log:
         "logs/downstream/fastani/fastani.log"
     conda:
-        "downstream/envs/fastani.yaml"
+        "envs/fastani.yaml"
     threads: 16
     resources:
         mem_mb = 8000
@@ -249,7 +249,7 @@ rule plasmidfinder_download_db:
     output:
         db_done = PLASMID_DB + "/.db_downloaded"
     conda:
-        "downstream/envs/plasmid.yaml"
+        "envs/plasmid.yaml"
     shell:
         """
         mkdir -p {PLASMID_DB}
@@ -273,7 +273,7 @@ rule plasmidfinder:
     log:
         "logs/downstream/plasmidfinder/{sample}.log"
     conda:
-        "downstream/envs/plasmid.yaml"
+        "envs/plasmid.yaml"
     threads: 1
     resources:
         mem_mb = 2000
@@ -339,7 +339,7 @@ rule roary:
     log:
         "logs/downstream/roary/roary.log"
     conda:
-        "downstream/envs/prokka_roary.yaml"
+        "envs/prokka_roary.yaml"
     threads: 16
     resources:
         mem_mb = 16000
@@ -376,9 +376,9 @@ rule amr_heatmap:
     log:
         "logs/downstream/figures/amr_heatmap.log"
     conda:
-        "downstream/envs/visualization.yaml"
+        "envs/visualization.yaml"
     script:
-        "downstream/scripts/amr_heatmap.py"
+        "scripts/amr_heatmap.py"
 
 
 # =============================================================================
@@ -395,9 +395,9 @@ rule snp_distance:
     log:
         "logs/downstream/snp_distance/snp_distance.log"
     conda:
-        "downstream/envs/visualization.yaml"
+        "envs/visualization.yaml"
     script:
-        "downstream/scripts/snp_distance_heatmap.py"
+        "scripts/snp_distance_heatmap.py"
 
 
 # =============================================================================
@@ -411,9 +411,9 @@ rule statistical_tests:
     log:
         "logs/downstream/statistics/stats.log"
     conda:
-        "downstream/envs/visualization.yaml"
+        "envs/visualization.yaml"
     script:
-        "downstream/scripts/statistical_tests.py"
+        "scripts/statistical_tests.py"
 
 
 # =============================================================================
@@ -430,6 +430,6 @@ rule geo_map:
     log:
         "logs/downstream/figures/geo_map.log"
     conda:
-        "downstream/envs/visualization.yaml"
+        "envs/visualization.yaml"
     script:
-        "downstream/scripts/geo_map.py"
+        "scripts/geo_map.py"
