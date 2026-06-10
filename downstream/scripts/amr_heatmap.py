@@ -63,6 +63,8 @@ def main():
 
     # Load data
     matrix = load_abricate_summary(abricate_path)
+    # Simplify gene names by removing prefix
+    matrix.columns = [c.replace("Klebsiella_pneumoniae_", "") for c in matrix.columns]
     matrix = filter_genes(matrix, min_presence=1)
 
     samples_df = pd.read_csv(samples_path, sep="\t").set_index("sample_id")
@@ -127,11 +129,11 @@ def main():
         "patch.linewidth": 0.8,
     })
 
-    # Layout constants (inches)
+    # Layout constants (inches) - expanded margins to prevent label overlap
     MARGIN_L = 0.15
-    MARGIN_R = 1.8
-    MARGIN_T = 0.50
-    MARGIN_B = 1.55
+    MARGIN_R = 3.0
+    MARGIN_T = 0.60
+    MARGIN_B = 2.0
     DEND_W   = 1.0
     ANNOT_W  = 0.22
     GAP      = 0.06
@@ -180,7 +182,7 @@ def main():
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, n_samples)
         ax.set_axis_off()
-        ax.text(0.5, -0.05, title, transform=ax.transAxes, ha="center", va="top",
+        ax.text(0.5, 1.02, title, transform=ax.transAxes, ha="center", va="bottom",
                 fontsize=7.5, fontweight="bold", rotation=90)
 
     draw_annotation_bar(ax_sp, [meta_df.loc[s, "species"] for s in matrix.index], species_colors, "Species")
@@ -242,11 +244,13 @@ def main():
     add_category_header(len(carb_genes) + len(esbl_genes) + len(flq_genes), len(carb_genes) + len(esbl_genes) + len(flq_genes) + len(mcr_genes), "MCR")
     add_category_header(len(carb_genes) + len(esbl_genes) + len(flq_genes) + len(mcr_genes), n_genes, "Other AMR")
 
-    # Legend Panel
+    # Legend Panel - Shifted further right to prevent overlap with y-tick labels
+    # Gap for y-tick labels is ~1.2 inches. So we place the legend at 1.4 inches from the heatmap.
+    LEGEND_L = 1.4  # Inches from right edge of heatmap to left edge of legend axis
     ax_leg = fig.add_axes([
-        1.0 - (MARGIN_R - 0.15) / FIG_W,
+        1.0 - (MARGIN_R - LEGEND_L) / FIG_W,
         MARGIN_B / FIG_H,
-        (MARGIN_R - 0.2) / FIG_W,
+        (MARGIN_R - LEGEND_L - 0.15) / FIG_W,
         HEAT_H / FIG_H
     ])
     ax_leg.set_axis_off()

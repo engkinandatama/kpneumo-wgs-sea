@@ -123,11 +123,11 @@ def main():
         "Klebsiella quasipneumoniae subsp. quasipneumoniae": "K. quasipneumoniae",
     }
 
-    # Layout constants (inches)
+    # Layout constants (inches) - expanded margins to prevent label overlap
     MARGIN_L = 0.15
-    MARGIN_R = 2.0
+    MARGIN_R = 3.2
     MARGIN_T = 0.80
-    MARGIN_B = 1.30
+    MARGIN_B = 1.60
     DEND_W   = 0.90
     ANNOT_W  = 0.22
     GAP      = 0.05
@@ -243,10 +243,12 @@ def main():
         ax_heat.add_patch(plt.Rectangle((lo, lo), hi - lo, hi - lo,
                                          fill=False, edgecolor="#14b8a6",
                                          linewidth=1.8, linestyle="--", zorder=5))
-        ax_heat.text(lo + (hi - lo)/2, lo - 0.4, "K. quasipneumoniae",
-                     ha="center", va="bottom", fontsize=7.5,
-                     color="#0d9488", fontweight="bold",
-                     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="#14b8a6", lw=0.6, alpha=0.9))
+        # Label text box - placed neatly at the center of the cluster diagonal
+        mid = lo + (hi - lo) / 2
+        ax_heat.text(mid, mid, "K. quasipneumoniae",
+                     ha="center", va="center", fontsize=7.5,
+                     color="#004d40", fontweight="bold",
+                     bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#14b8a6", lw=0.8, alpha=0.85))
 
     # Vietnamese ST15 outbreak cohort
     vn_idx = [i for i, s in enumerate(dist_matrix.index) if samples_df.loc[s, "country"] == "Vietnam" if s in samples_df.index]
@@ -255,32 +257,38 @@ def main():
         ax_heat.add_patch(plt.Rectangle((lo, lo), hi - lo, hi - lo,
                                          fill=False, edgecolor="#ef4444",
                                          linewidth=1.8, linestyle=":", zorder=5))
-        ax_heat.text(lo + (hi - lo)/2, hi + 0.4, "ST15 Clonal Cluster",
-                     ha="center", va="top", fontsize=7.5,
-                     color="#dc2626", fontweight="bold",
-                     bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="#ef4444", lw=0.6, alpha=0.9))
+        # Label text box - placed neatly at the center of the cluster diagonal
+        mid = lo + (hi - lo) / 2
+        ax_heat.text(mid, mid, "ST15 Clonal Cluster",
+                     ha="center", va="center", fontsize=7.5,
+                     color="#7f1d1d", fontweight="bold",
+                     bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#ef4444", lw=0.8, alpha=0.85))
 
-    # Colorbar and Legend Panel
-    ax_leg = fig.add_axes([
-        1.0 - (MARGIN_R - 0.20) / FIG_W,
-        MARGIN_B / FIG_H,
-        (MARGIN_R - 0.25) / FIG_W,
-        HEAT_SZ / FIG_H
-    ])
-    ax_leg.set_axis_off()
+    # Colorbar and Legend Panel - Shifted right to prevent overlap with y-tick labels
+    # Gap for y-tick labels is ~1.2 inches. Colorbar and Legend start at 1.4 inches from heatmap.
+    LEGEND_L = 1.4  # Inches from right edge of heatmap to left edge of colorbar/legend axes
 
-    # Colorbar positioning
+    # Add Colorbar manually inside the legend axis area to keep it perfectly aligned
     cb_ax = fig.add_axes([
-        1.0 - (MARGIN_R - 0.20) / FIG_W,
+        1.0 - (MARGIN_R - LEGEND_L) / FIG_W,
         (MARGIN_B + HEAT_SZ - 1.8) / FIG_H,
         0.18 / FIG_W,
         1.5 / FIG_H
     ])
     cbar = fig.colorbar(im, cax=cb_ax, orientation="vertical")
-    cbar.set_label("Pairwise SNP Distance (log scale)", fontsize=7.5, fontweight="bold", labelpad=8)
+    cbar.set_label("Pairwise SNP Distance (log scale)", fontsize=7.5, fontweight="bold", labelpad=10)
     cb_ax.yaxis.set_ticks_position("right")
-    cb_ax.yaxis.set_label_position("left")
+    cb_ax.yaxis.set_label_position("right")  # Label on the right side of the colorbar, away from sample names
     cb_ax.tick_params(labelsize=7)
+
+    # Legend Panel Axis
+    ax_leg = fig.add_axes([
+        1.0 - (MARGIN_R - LEGEND_L) / FIG_W,
+        MARGIN_B / FIG_H,
+        (MARGIN_R - LEGEND_L - 0.15) / FIG_W,
+        (HEAT_SZ - 2.0) / FIG_H
+    ])
+    ax_leg.set_axis_off()
 
     # Custom legends
     legend_patches = []

@@ -4,6 +4,7 @@ import matplotlib
 matplotlib.use("Agg")  # Headless backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import geopandas as gpd
 import os
 
@@ -183,16 +184,16 @@ def main():
         else:
             s_vals, c_vals = [1], ["#cccccc"]
 
-        # Transform data coordinates to display coordinates for inset placement
-        x_disp, y_disp = ax.transData.transform((lon, lat))
-        inv = fig.transFigure.inverted()
-        x_fig, y_fig = inv.transform((x_disp, y_disp))
-
-        # Place inset pie chart
-        pie_size = 0.065
-        ax_inset = fig.add_axes([x_fig - pie_size / 2,
-                                  y_fig - pie_size / 2,
-                                  pie_size, pie_size])
+        # Place inset pie chart using inset_axes (automatically handles projections/transforms)
+        ax_inset = inset_axes(
+            ax, 
+            width=0.45,  # Width in inches
+            height=0.45, # Height in inches
+            loc="center",
+            bbox_to_anchor=(lon, lat),
+            bbox_transform=ax.transData,
+            borderpad=0
+        )
         
         ax_inset.pie(
             s_vals, 
