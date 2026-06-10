@@ -1,10 +1,15 @@
+import os
+import sys
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # Headless backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import seaborn as sns
 from matplotlib.colors import ListedColormap
-import os
+from matplotlib.gridspec import GridSpec
+from scipy.cluster.hierarchy import linkage, dendrogram, leaves_list
+from scipy.spatial.distance import pdist
 
 # ============================================================
 # Publication-Quality AMR Genotypic Heatmap
@@ -65,146 +70,229 @@ def main():
 
     # Muted, professional color palettes
     country_colors = {
-        "Indonesia": "#3c8dbc",  # Steel blue
-        "Malaysia":  "#00a65a",  # Emerald green
-        "Vietnam":   "#f39c12",  # Amber
-        "Thailand":  "#dd4b39",  # Crimson
+        "Indonesia": "#2c7bb6",  # Elegant Blue
+        "Malaysia":  "#1a9641",  # Elegant Green
+        "Vietnam":   "#d7191c",  # Elegant Red
+        "Thailand":  "#fdae61",  # Elegant Orange
     }
     species_colors = {
-        "Klebsiella pneumoniae": "#2c3e50",  # Muted slate/navy
-        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "#16a085",  # Muted teal
+        "Klebsiella pneumoniae": "#252525",  # Dark Charcoal
+        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "#41b6c4",  # Muted Teal
+    }
+    species_labels = {
+        "Klebsiella pneumoniae": "K. pneumoniae",
+        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "K. quasipneumoniae",
     }
 
-    # Sort samples initially, clustermap will reorder them hierarchically
-    common_samples = [s for s in matrix.index if s in samples_df.index]
+    # Sort samples initially
+    common_samples = [s for s in matrix.index if s in samples_df.index and s in meta_df.index]
     matrix = matrix.loc[common_samples]
 
     # Group genes by category for logical column ordering
-    carb_genes = [c for c in matrix.columns
-                  if any(kw in c for kw in ["NDM", "KPC", "OXA", "GES", "IMP", "VIM", "MBL"])]
-    esbl_genes = [c for c in matrix.columns
-                  if any(kw in c for kw in ["CTX-M", "TEM", "SHV", "VEB"])]
-    flq_genes  = [c for c in matrix.columns
-                  if any(kw in c for kw in ["Qnr", "qnr", "aac(6')", "Gyra", "ParC"])]
-    mcr_genes  = [c for c in matrix.columns
-                  if c.lower().startswith("mcr")]
-    other_genes = [c for c in matrix.columns
-                   if c not in carb_genes + esbl_genes + flq_genes + mcr_genes]
+    carb_genes = sorted([c for c in matrix.columns
+                  if any(kw in c for kw in ["NDM", "KPC", "OXA", "GES", "IMP", "VIM", "BRP"])])
+    esbl_genes = sorted([c for c in matrix.columns
+                  if any(kw in c for kw in ["CTX-M", "TEM", "SHV", "VEB", "OKP"])])
+    flq_genes  = sorted([c for c in matrix.columns
+                  if any(kw in c for kw in ["Qnr", "qnr", "oqx"])])
+    mcr_genes  = sorted([c for c in matrix.columns
+                  if c.lower().startswith("mcr")])
+    other_genes = sorted([c for c in matrix.columns
+                   if c not in carb_genes + esbl_genes + flq_genes + mcr_genes])
     
     col_order = carb_genes + esbl_genes + flq_genes + mcr_genes + other_genes
     matrix = matrix[col_order]
 
-    # Map row annotations (Species and Country)
-    annot_df = pd.DataFrame(index=matrix.index)
-    annot_df["Country"] = matrix.index.map(
-        lambda s: country_colors.get(samples_df.loc[s, "country"] if s in samples_df.index else "Unknown", "#999999")
-    )
-    annot_df["Species"] = matrix.index.map(
-        lambda s: species_colors.get(meta_df.loc[s, "species"] if s in meta_df.index else "Unknown", "#7f8c8d")
-    )
+    # Cluster rows using Jaccard distance
+    Z = linkage(pdist(matrix.values, "jaccard"), method="average")
+    order = leaves_list(Z)
+    matrix = matrix.iloc[order]
+    meta_df = meta_df.loc[matrix.index]
+
+    n_samples, n_genes = matrix.shape
 
     # Set publication-quality font
-    sns.set_theme(style="white", rc={"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans", "Arial"]})
+    plt.rcParams.update({
+        "font.family": "DejaVu Sans",
+        "font.size": 8,
+        "axes.titlesize": 10,
+        "axes.labelsize": 9,
+        "xtick.labelsize": 7.5,
+        "ytick.labelsize": 7.5,
+        "legend.fontsize": 8,
+        "figure.dpi": 300,
+        "axes.linewidth": 0.8,
+        "xtick.major.width": 0.8,
+        "ytick.major.width": 0.8,
+        "patch.linewidth": 0.8,
+    })
 
-    # Plot dimensions
-    fig_height = max(8, len(matrix) * 0.45)
-    fig_width  = max(14, len(col_order) * 0.28)
-    
-    # Custom binary color map using ListedColormap: slate-white (absent) -> deep navy (present)
-    cmap = ListedColormap(["#f8fafc", "#1e3a8a"])
+    # Layout constants (inches)
+    MARGIN_L = 0.15
+    MARGIN_R = 1.8
+    MARGIN_T = 0.50
+    MARGIN_B = 1.55
+    DEND_W   = 1.0
+    ANNOT_W  = 0.22
+    GAP      = 0.06
+    HEAT_W   = n_genes * 0.165
+    CAT_H    = 0.30
+    HEAT_H   = n_samples * 0.30
 
-    print("[amr_heatmap] Plotting clustered resistome heatmap ...")
-    
-    # Generate clustered heatmap (cluster rows/isolates, keep columns in functional order)
-    g = sns.clustermap(
-        matrix,
-        row_cluster=True,
-        col_cluster=False,
-        row_colors=annot_df[["Species", "Country"]],
-        cmap=cmap,
-        linewidths=0.4,
-        linecolor="#cbd5e1",
-        figsize=(fig_width, fig_height),
-        cbar_pos=None,
-        tree_kws={"linewidths": 0.8},
+    FIG_W = MARGIN_L + DEND_W + GAP + ANNOT_W + GAP + ANNOT_W + GAP + HEAT_W + MARGIN_R
+    FIG_H = MARGIN_B + HEAT_H + CAT_H + MARGIN_T
+
+    fig = plt.figure(figsize=(FIG_W, FIG_H), facecolor="white")
+
+    # Define GridSpec
+    gs = GridSpec(
+        2, 4,
+        left=MARGIN_L / FIG_W,
+        right=1.0 - MARGIN_R / FIG_W,
+        bottom=MARGIN_B / FIG_H,
+        top=1.0 - MARGIN_T / FIG_H,
+        width_ratios=[DEND_W, ANNOT_W, ANNOT_W, HEAT_W],
+        height_ratios=[CAT_H, HEAT_H],
+        wspace=GAP / np.mean([DEND_W, ANNOT_W, HEAT_W]),
+        hspace=0.0
     )
 
-    # Style axes
-    plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90, fontsize=8, fontweight="bold")
-    plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0, fontsize=8)
-    g.ax_heatmap.set_xlabel("Resistance Gene", fontsize=10, fontweight="bold", labelpad=10)
-    g.ax_heatmap.set_ylabel("Isolate", fontsize=10, fontweight="bold", labelpad=10)
-    
-    # Add vertical separator lines between gene categories
+    ax_dend   = fig.add_subplot(gs[1, 0])
+    ax_sp     = fig.add_subplot(gs[1, 1])
+    ax_co     = fig.add_subplot(gs[1, 2])
+    ax_heat   = fig.add_subplot(gs[1, 3])
+    ax_cat    = fig.add_subplot(gs[0, 3])
+
+    # Row dendrogram
+    dendrogram(
+        Z, orientation="left", ax=ax_dend,
+        color_threshold=0, above_threshold_color="#555555",
+        link_color_func=lambda k: "#555555",
+        no_labels=True
+    )
+    ax_dend.set_axis_off()
+
+    # Annotation bar drawing helper
+    def draw_annotation_bar(ax, values, palette, title):
+        colors = [palette.get(v, "#cccccc") for v in values]
+        for i, c in enumerate(colors):
+            ax.barh(i + 0.5, 1.0, color=c, height=0.9, edgecolor="white", linewidth=0.5)
+        ax.set_xlim(0, 1.0)
+        ax.set_ylim(0, n_samples)
+        ax.set_axis_off()
+        ax.text(0.5, -0.05, title, transform=ax.transAxes, ha="center", va="top",
+                fontsize=7.5, fontweight="bold", rotation=90)
+
+    draw_annotation_bar(ax_sp, [meta_df.loc[s, "species"] for s in matrix.index], species_colors, "Species")
+    draw_annotation_bar(ax_co, [samples_df.loc[s, "country"] for s in matrix.index], country_colors, "Country")
+
+    # Main Heatmap
+    cmap = ListedColormap(["#f1f5f9", "#1e3a8a"])  # slate-white (absent) -> deep navy (present)
+    im = ax_heat.imshow(
+        matrix.values,
+        aspect="auto",
+        cmap=cmap,
+        vmin=0, vmax=1,
+        interpolation="nearest"
+    )
+
+    # Grid lines
+    ax_heat.set_xticks(np.arange(-0.5, n_genes, 1), minor=True)
+    ax_heat.set_yticks(np.arange(-0.5, n_samples, 1), minor=True)
+    ax_heat.grid(which="minor", color="#cbd5e1", linewidth=0.4)
+    ax_heat.tick_params(which="minor", length=0)
+    for spine in ax_heat.spines.values():
+        spine.set_visible(True)
+        spine.set_color("#475569")
+        spine.set_linewidth(0.8)
+
+    # Tick labels
+    ax_heat.set_xticks(range(n_genes))
+    ax_heat.set_xticklabels(col_order, rotation=90, fontsize=7.5, fontweight="bold")
+    ax_heat.set_yticks(range(n_samples))
+    ax_heat.set_yticklabels(matrix.index, fontsize=7.5)
+    ax_heat.yaxis.set_ticks_position("right")
+    ax_heat.tick_params(axis="both", which="both", length=2, color="#475569", pad=3)
+
+    # Category split lines
     offsets = [len(carb_genes), len(carb_genes) + len(esbl_genes),
                len(carb_genes) + len(esbl_genes) + len(flq_genes),
                len(carb_genes) + len(esbl_genes) + len(flq_genes) + len(mcr_genes)]
     for x in offsets:
-        if 0 < x < len(col_order):
-            g.ax_heatmap.axvline(x=x, color="black", linewidth=1.5, linestyle="--", alpha=0.5)
+        if 0 < x < n_genes:
+            ax_heat.axvline(x=x - 0.5, color="#1e293b", linewidth=1.2, linestyle="--", alpha=0.8)
 
-    g.fig.suptitle(
+    # Category labels above heatmap
+    ax_cat.set_xlim(ax_heat.get_xlim())
+    ax_cat.set_ylim(0, 1)
+    ax_cat.set_axis_off()
+
+    def add_category_header(start, end, text):
+        if end > start:
+            mid = (start + end - 1) / 2
+            ax_cat.plot([start - 0.35, end - 0.65], [0.15, 0.15], color="#334155", linewidth=1.0)
+            ax_cat.plot([start - 0.35, start - 0.35], [0.15, 0.35], color="#334155", linewidth=1.0)
+            ax_cat.plot([end - 0.65, end - 0.65], [0.15, 0.35], color="#334155", linewidth=1.0)
+            ax_cat.text(mid, 0.45, text, ha="center", va="bottom", fontsize=7.5,
+                        fontweight="bold", color="#1e293b")
+
+    add_category_header(0, len(carb_genes), "Carbapenems")
+    add_category_header(len(carb_genes), len(carb_genes) + len(esbl_genes), "ESBLs")
+    add_category_header(len(carb_genes) + len(esbl_genes), len(carb_genes) + len(esbl_genes) + len(flq_genes), "Quinolones")
+    add_category_header(len(carb_genes) + len(esbl_genes) + len(flq_genes), len(carb_genes) + len(esbl_genes) + len(flq_genes) + len(mcr_genes), "MCR")
+    add_category_header(len(carb_genes) + len(esbl_genes) + len(flq_genes) + len(mcr_genes), n_genes, "Other AMR")
+
+    # Legend Panel
+    ax_leg = fig.add_axes([
+        1.0 - (MARGIN_R - 0.15) / FIG_W,
+        MARGIN_B / FIG_H,
+        (MARGIN_R - 0.2) / FIG_W,
+        HEAT_H / FIG_H
+    ])
+    ax_leg.set_axis_off()
+
+    # Build legend handles
+    legend_patches = []
+    # Species
+    legend_patches.append(mpatches.Patch(facecolor="white", edgecolor="white", label="Species"))
+    for sp, c in species_colors.items():
+        legend_patches.append(mpatches.Patch(facecolor=c, edgecolor="black", linewidth=0.5,
+                                             label=species_labels.get(sp, sp)))
+    legend_patches.append(mpatches.Patch(facecolor="white", edgecolor="white", label=""))
+    # Country
+    legend_patches.append(mpatches.Patch(facecolor="white", edgecolor="white", label="Country"))
+    for co, c in country_colors.items():
+        legend_patches.append(mpatches.Patch(facecolor=c, edgecolor="black", linewidth=0.5, label=co))
+    legend_patches.append(mpatches.Patch(facecolor="white", edgecolor="white", label=""))
+    # Presence
+    legend_patches.append(mpatches.Patch(facecolor="white", edgecolor="white", label="AMR Presence"))
+    legend_patches.append(mpatches.Patch(facecolor="#1e3a8a", edgecolor="black", linewidth=0.5, label="Present"))
+    legend_patches.append(mpatches.Patch(facecolor="#f1f5f9", edgecolor="#cbd5e1", linewidth=0.5, label="Absent"))
+
+    ax_leg.legend(
+        handles=legend_patches,
+        loc="upper left",
+        bbox_to_anchor=(0.0, 1.0),
+        frameon=False,
+        fontsize=7.5,
+        borderpad=0.0,
+        handlelength=1.1,
+        labelspacing=0.35
+    )
+
+    # Title
+    fig.suptitle(
         "Resistome Profile of Klebsiella pneumoniae Complex Clinical Isolates\n"
         "from Southeast Asia (n=20)",
-        fontsize=13, fontweight="bold", y=0.98
-    )
-
-    # Adjust layout to prevent clipping and leave space for legends
-    g.fig.subplots_adjust(top=0.90, right=0.84)
-
-    # Add legends for row annotations
-    # 1. Country legend
-    country_patches = [
-        mpatches.Patch(facecolor=c, edgecolor=c, label=k)
-        for k, c in country_colors.items()
-    ]
-    g.fig.legend(
-        handles=country_patches,
-        title="Country of Origin",
-        loc="upper right",
-        bbox_to_anchor=(0.99, 0.85),
-        frameon=True,
-        fontsize=8,
-        title_fontsize=9
-    )
-
-    # 2. Species legend (simplified labels)
-    species_labels = {
-        "Klebsiella pneumoniae": "K. pneumoniae",
-        "Klebsiella quasipneumoniae subsp. quasipneumoniae": "K. quasipneumoniae"
-    }
-    species_patches = [
-        mpatches.Patch(facecolor=c, edgecolor=c, label=species_labels.get(k, k))
-        for k, c in species_colors.items()
-    ]
-    g.fig.legend(
-        handles=species_patches,
-        title="Species Identification",
-        loc="upper right",
-        bbox_to_anchor=(0.99, 0.70),
-        frameon=True,
-        fontsize=8,
-        title_fontsize=9
-    )
-
-    # 3. Gene presence/absence legend
-    amr_patches = [
-        mpatches.Patch(facecolor="#1e3a8a", edgecolor="#1e3a8a", label="Present"),
-        mpatches.Patch(facecolor="#f8fafc", edgecolor="#cbd5e1", label="Absent")
-    ]
-    g.fig.legend(
-        handles=amr_patches,
-        title="AMR Gene Presence",
-        loc="upper right",
-        bbox_to_anchor=(0.99, 0.55),
-        frameon=True,
-        fontsize=8,
-        title_fontsize=9
+        fontsize=11, fontweight="bold",
+        x=(MARGIN_L + DEND_W + GAP + ANNOT_W + GAP + ANNOT_W + GAP + HEAT_W/2) / FIG_W,
+        y=1.0 - 0.20 / FIG_H,
+        ha="center"
     )
 
     # Save to outputs
-    g.fig.savefig(out_pdf, dpi=300, bbox_inches="tight")
-    g.fig.savefig(out_png, dpi=300, bbox_inches="tight")
+    fig.savefig(out_pdf, dpi=300, bbox_inches="tight")
+    fig.savefig(out_png, dpi=300, bbox_inches="tight")
     print(f"[amr_heatmap] Heatmap saved → {out_pdf} and {out_png}")
 
 

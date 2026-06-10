@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # Headless backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import geopandas as gpd
-import sys
+import os
 
 # ============================================================
 # Geographic Distribution Map – Southeast Asia
@@ -30,17 +32,19 @@ COUNTRY_CENTROIDS = {
     "Thailand":  (101.0, 15.5),
 }
 
+# Unified publication-grade country palette (matching heatmaps)
 COUNTRY_COLORS = {
-    "Indonesia": "#4285F4",
-    "Malaysia":  "#34A853",
-    "Vietnam":   "#FBBC05",
-    "Thailand":  "#EA4335",
+    "Indonesia": "#2c7bb6",  # Elegant Blue
+    "Malaysia":  "#1a9641",  # Elegant Green
+    "Vietnam":   "#d7191c",  # Elegant Red
+    "Thailand":  "#fdae61",  # Elegant Orange
 }
 
+# Unified species palette
 SPECIES_COLORS = {
-    "Klebsiella pneumoniae":       "#2C3E50",
-    "Klebsiella quasipneumoniae":  "#E67E22",
-    "Unknown":                     "#95A5A6",
+    "Klebsiella pneumoniae":       "#252525",  # Dark Charcoal
+    "Klebsiella quasipneumoniae":  "#41b6c4",  # Muted Teal
+    "Unknown":                     "#94a3b8",  # Slate
 }
 
 
@@ -68,7 +72,7 @@ def load_species_labels(fastani_tsv: str, samples_df: pd.DataFrame) -> pd.Series
             ani.sort_values("ANI", ascending=False)
                .drop_duplicates("sample_id")
                .set_index("sample_id")["species_label"]
-        )
+         )
         return best
     except Exception:
         # Fallback: assume Kp for all
@@ -77,6 +81,19 @@ def load_species_labels(fastani_tsv: str, samples_df: pd.DataFrame) -> pd.Series
 
 
 def main():
+    global snakemake
+    if 'snakemake' not in globals():
+        class MockSnakemake:
+            input = type('Input', (), {
+                'samples': 'config/samples.tsv',
+                'fastani': 'results/downstream/fastani/ani_classified.tsv'
+            })()
+            output = type('Output', (), {
+                'pdf': 'results/downstream/figures/geo_map.pdf',
+                'png': 'results/downstream/figures/geo_map.png'
+            })()
+        snakemake = MockSnakemake()
+
     samples_path  = snakemake.input.samples
     fastani_path  = snakemake.input.fastani
     out_pdf       = snakemake.output.pdf
@@ -86,7 +103,7 @@ def main():
     species    = load_species_labels(fastani_path, samples_df)
     samples_df["species"] = samples_df.index.map(species).fillna("Unknown")
 
-    # ── Count by country × species ────────────────────────────────────────────
+    # Count by country × species
     summary = (
         samples_df.groupby(["country", "species"])
                   .size()
@@ -94,7 +111,7 @@ def main():
     )
     total_per_country = samples_df.groupby("country").size()
 
-    # ── Load world map ─────────────────────────────────────────────────────────
+    # Load world map
     try:
         world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
     except (AttributeError, ValueError):
@@ -114,107 +131,145 @@ def main():
     sea_iso = list(SEA_COUNTRIES.values())
     sea_map = world[world["iso_a3"].isin(sea_iso)].copy()
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-    world.plot(ax=ax, color="#f0f0f0", edgecolor="#cccccc", linewidth=0.4)
-    sea_map.plot(ax=ax, color="#dce8f5", edgecolor="#888888", linewidth=0.7)
+    # Set publication-quality font
+    plt.rcParams.update({
+        "font.family": "DejaVu Sans",
+        "font.size": 8,
+        "axes.titlesize": 11,
+        "axes.labelsize": 9,
+        "legend.fontsize": 8,
+        "figure.dpi": 300,
+        "axes.linewidth": 0.8,
+        "patch.linewidth": 0.8,
+    })
 
-    # ── Highlight each SEA country with a thick border ─────────────────────────
+    fig, ax = plt.subplots(1, 1, figsize=(9, 7), facecolor="white")
+    
+    # Plot global background map
+    world.plot(ax=ax, color="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5)
+    # Plot Southeast Asia region background
+    sea_map.plot(ax=ax, color="#f1f5f9", edgecolor="#cbd5e1", linewidth=0.8)
+
+    # Highlight target countries
     for country, iso in SEA_COUNTRIES.items():
         country_shape = sea_map[sea_map["iso_a3"] == iso]
         if country_shape.empty:
             continue
+        # Subtly shade target countries using their assigned country palette color
         country_shape.plot(
             ax=ax,
             color=COUNTRY_COLORS.get(country, "#cccccc"),
-            edgecolor="#444444",
-            linewidth=0.9,
-            alpha=0.6,
+            edgecolor="#334155",
+            linewidth=0.8,
+            alpha=0.25,
         )
 
-    # ── Bubble + pie chart per country ────────────────────────────────────────
+    # Draw pie charts at centroids
     max_count = total_per_country.max()
     for country, (lon, lat) in COUNTRY_CENTROIDS.items():
         if country not in total_per_country.index:
             continue
         total = total_per_country[country]
-        radius_pts = 30 + (total / max_count) * 120   # bubble size
 
         sub = summary[summary["country"] == country]
         sp_counts = dict(zip(sub["species"], sub["count"]))
 
-        # Pie chart inset at bubble location
-        sizes  = [sp_counts.get(sp, 0) for sp in SPECIES_COLORS]
-        colors = [SPECIES_COLORS[sp] for sp in SPECIES_COLORS]
+        # Pie chart inset slices
+        sizes  = [sp_counts.get(sp, 0) for sp in ["Klebsiella pneumoniae", "Klebsiella quasipneumoniae", "Unknown"]]
+        colors = [SPECIES_COLORS[sp] for sp in ["Klebsiella pneumoniae", "Klebsiella quasipneumoniae", "Unknown"]]
         valid  = [(s, c) for s, c in zip(sizes, colors) if s > 0]
         if valid:
             s_vals, c_vals = zip(*valid)
         else:
             s_vals, c_vals = [1], ["#cccccc"]
 
-        # Transform data coords → display coords for inset
+        # Transform data coordinates to display coordinates for inset placement
         x_disp, y_disp = ax.transData.transform((lon, lat))
         inv = fig.transFigure.inverted()
         x_fig, y_fig = inv.transform((x_disp, y_disp))
 
-        pie_size = 0.06
+        # Place inset pie chart
+        pie_size = 0.065
         ax_inset = fig.add_axes([x_fig - pie_size / 2,
                                   y_fig - pie_size / 2,
                                   pie_size, pie_size])
-        ax_inset.pie(s_vals, colors=c_vals, startangle=90,
-                     wedgeprops={"linewidth": 0.5, "edgecolor": "white"})
+        
+        ax_inset.pie(
+            s_vals, 
+            colors=c_vals, 
+            startangle=90,
+            wedgeprops={"linewidth": 0.5, "edgecolor": "white"}
+        )
+        # Draw thin border around the pie chart
+        circle = plt.Circle((0,0), 1.0, fill=False, edgecolor="#334155", linewidth=0.6)
+        ax_inset.add_artist(circle)
         ax_inset.set_aspect("equal")
 
-        # Count label below pie
+        # Label country and sample size below the bubble
         ax.annotate(
             f"n={total}",
-            xy=(lon, lat - 3.5),
+            xy=(lon, lat - 3.2),
             ha="center", va="center",
-            fontsize=9, fontweight="bold",
-            color=COUNTRY_COLORS.get(country, "#333333"),
+            fontsize=8.5, fontweight="bold",
+            color=COUNTRY_COLORS.get(country, "#1e293b"),
         )
         ax.annotate(
             country,
-            xy=(lon, lat - 5.5),
+            xy=(lon, lat - 5.0),
             ha="center", va="center",
-            fontsize=8, color="#333333",
+            fontsize=8, color="#475569",
+            fontweight="semibold"
         )
 
-    # ── Map extent – Southeast Asia ───────────────────────────────────────────
+    # Set map extent for Southeast Asia focus
     ax.set_xlim(95, 135)
     ax.set_ylim(-12, 28)
     ax.set_axis_off()
 
     ax.set_title(
         "Geographic Distribution of\n"
-        "K. pneumoniae Complex Isolates in Southeast Asia",
-        fontsize=13, fontweight="bold", pad=10
+        "K. pneumoniae Complex Isolates in Southeast Asia (n=20)",
+        fontsize=11, fontweight="bold", pad=12, color="#1e293b"
     )
 
-    # ── Legends ───────────────────────────────────────────────────────────────
+    # Neatly styled legends
     species_patches = [
-        mpatches.Patch(color=c, label=sp.replace("Klebsiella", "K."))
+        mpatches.Patch(facecolor=c, edgecolor="black", linewidth=0.5, label=sp.replace("Klebsiella ", "K. "))
         for sp, c in SPECIES_COLORS.items()
         if sp != "Unknown"
     ]
     country_patches = [
-        mpatches.Patch(color=c, label=k)
+        mpatches.Patch(facecolor=c, edgecolor="black", linewidth=0.5, label=k)
         for k, c in COUNTRY_COLORS.items()
     ]
 
     legend1 = ax.legend(
-        handles=species_patches, title="Species",
-        loc="lower left", fontsize=8, title_fontsize=9,
-        framealpha=0.85
+        handles=species_patches, 
+        title="Species", 
+        loc="lower left", 
+        fontsize=7.5, 
+        title_fontsize=8,
+        frameon=True,
+        facecolor="white",
+        edgecolor="#cbd5e1"
     )
     ax.add_artist(legend1)
+    
     ax.legend(
-        handles=country_patches, title="Country",
-        loc="lower right", fontsize=8, title_fontsize=9,
-        framealpha=0.85
+        handles=country_patches, 
+        title="Country of Origin", 
+        loc="lower right", 
+        fontsize=7.5, 
+        title_fontsize=8,
+        frameon=True,
+        facecolor="white",
+        edgecolor="#cbd5e1"
     )
 
+    # Save output figures
     fig.savefig(out_pdf, dpi=300, bbox_inches="tight")
     fig.savefig(out_png, dpi=300, bbox_inches="tight")
+    plt.close(fig)
     print(f"[geo_map] Saved → {out_pdf} and {out_png}")
 
 
