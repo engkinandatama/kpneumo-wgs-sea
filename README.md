@@ -1,87 +1,88 @@
-# K. pneumoniae WGS Pipeline — SEA AMR Study
+# WGS and Downstream Analysis Pipeline for Southeast Asian KpSC Clinical Isolates
 
-Pipeline Snakemake untuk analisis Whole Genome Sequencing (WGS) isolat *Klebsiella pneumoniae* dari Asia Tenggara (Indonesia, Malaysia, Vietnam).
+This repository contains a reproducible Snakemake workflow for processing raw whole-genome sequencing (WGS) data of *Klebsiella pneumoniae* species complex (KpSC) clinical isolates from Southeast Asia (Indonesia, Malaysia, Thailand, and Vietnam).
 
-## Fitur
-- **Otomatisasi penuh:** Dari download SRA hingga report final dan phylogenetic tree.
-- **Efisiensi Penyimpanan:** Menggunakan fitur `temp()` Snakemake untuk menghapus file FASTQ dan BAM mentah setelah diproses.
-- **Reproduksibilitas:** Environment dikelola via Conda/Mamba dengan versi yang terpinned.
-- **QC Komprehensif:** FastQC, fastp, Qualimap (BAM coverage), QUAST (assembly), MultiQC.
-- **Dual Variant Calling:** FreeBayes (+ SnpEff + SnpSift HIGH/MODERATE filter) & Snippy (bacterial-optimized).
-- **Phylogeny:** Core genome SNP alignment (snippy-core) → FastTree (GTR) → siap upload ke Microreact/iTOL.
-- **AMR Profiling Komprehensif:** Kleborate, ABRicate (CARD), AMRFinderPlus (NCBI), ResFinder (plasmid-mediated).
-- **Typing:** Kleborate (MLST + K/O-locus + virulence score) + standalone MLST (Pasteur scheme).
+## Features
+- **End-to-End Automation:** From raw SRA read retrieval to variant calling, assembly, typing, AMR profiling, phylogeny, and downstream statistical/visual analyses.
+- **Storage Optimization:** Automatically deletes intermediate raw FASTQ and large BAM alignment files after processing using Snakemake's `temp()` directive.
+- **Reproducibility:** Conda/Mamba environments manage all software versions.
+- **Quality Control:** FastQC, fastp (read trimming), Qualimap (alignment stats), QUAST (assembly quality), and MultiQC.
+- **Dual Variant Calling:** FreeBayes (+ SnpEff variant annotation) and Snippy (optimized for bacterial genomes).
+- **Phylogeny:** Core-genome SNP alignment (via `snippy-core`) and phylogenetic tree construction (FastTree).
+- **Genotyping & AMR Profiling:** Kleborate (MLST, K/O-locus typing, virulence scoring) and ABRicate (CARD, ResFinder, NCBI databases).
 
-## Struktur Folder
-```
-kpneumo-wgs-sea/
+## Directory Structure
+```text
+kpneumo-wgs/
 ├── config/
-│   ├── config.yaml     # Konfigurasi pipeline
-│   └── samples.tsv     # Daftar 15 sampel SEA
-├── data/               # Data & referensi (diabaikan git)
-├── results/            # Output pipeline (diabaikan git)
-├── logs/               # Log setiap step (diabaikan git)
+│   ├── config.yaml          # Pipeline configurations
+│   └── samples.tsv          # Metadata and SRA accessions for the 20 isolates
+├── data/                    # Reference genome and databases (ignored by Git)
+├── results/                 # Primary pipeline outputs (ignored by Git)
+├── logs/                    # Rule logs (ignored by Git)
 ├── scripts/
-│   └── setup_databases.sh  # Setup database awal
-├── Snakefile           # Workflow utama
-└── environment.yml     # Conda environment
+│   └── setup_databases.sh   # Downloads and configures reference databases
+├── envs/                    # Conda environment definition files
+├── downstream/              # Downstream analysis pipeline
+│   ├── Snakefile            # Downstream workflow definition
+│   ├── config.yaml          # Downstream configurations
+│   ├── envs/                # Conda environments for downstream tools
+│   ├── scripts/             # Downstream R/Python analysis and plotting scripts
+│   └── README.md            # Readme for downstream analysis
+├── Snakefile                # Main variant calling and assembly workflow
+├── environment.yml          # Core Conda environment specification
+└── snpEff.config            # SnpEff database configuration
 ```
 
 ## Dataset
-15 isolat *K. pneumoniae* complex dari Asia Tenggara:
-- 🇮🇩 **Indonesia (5):** SRR31897984, SRR31897983, SRR31897982, SRR31897981, SRR21679075
-- 🇲🇾 **Malaysia (5):** SRR7964123–SRR7964127
-- 🇻🇳 **Vietnam (5):** DRR076141–DRR076145
+This study analyzes 20 clinical isolates from the *Klebsiella pneumoniae* species complex:
+- 🇮🇩 **Indonesia (5):** SRR31897979, SRR31897980, SRR31897981, SRR31897982, SRR21679075
+- 🇲🇾 **Malaysia (5):** ERR9538944, ERR9538945, ERR9538947, ERR9538952, ERR9538958
+- 🇹🇭 **Thailand (5):** SRR26412217, SRR26412242, SRR26412243, SRR26412254, SRR26412293
+- 🇻🇳 **Vietnam (5):** SRR6208298, SRR6208299, SRR6208300, SRR6208301, SRR6208302
 
-## Cara Penggunaan (HPC)
+## Installation & Setup
 
-### 1. Clone Repository
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/engkinandatama/kpneumo-wgs-sea.git
-cd kpneumo-wgs-sea
+git clone https://github.com/engkinandatama/kpneumo-wgs.git
+cd kpneumo-wgs
 ```
 
-### 2. Setup Environment
+### 2. Configure the Conda Environment
+Ensure Conda or Mamba is installed. Mamba is recommended for faster dependency resolution.
 ```bash
 conda env create -f environment.yml
 conda activate kpneumo_wgs
 ```
 
-### 3. Setup Database & Reference
-Jalankan sekali untuk mendownload semua database yang diperlukan.
+### 3. Setup Reference Databases
+Execute the setup script to download reference databases (NCBI HS11286 reference genome and typing databases):
 ```bash
 bash scripts/setup_databases.sh
 ```
 
-### 4. Run Pipeline
-Lakukan *dry-run* terlebih dahulu untuk memastikan semua rule terhubung dengan benar:
+## Execution
+
+### Dry-run Validation
+Verify rules and dependencies without executing the pipeline:
 ```bash
-snakemake -n --cores 64 --resources mem_mb=60000
+snakemake -n --cores 16
 ```
 
-Jalankan pipeline dengan resource limit (64 core, 60 GB RAM = 1/2 kapasitas HPC):
+### Run Pipeline
+Execute the full variant calling and assembly pipeline:
 ```bash
-snakemake --cores 64 --resources mem_mb=60000
+snakemake --use-conda --cores 16
 ```
 
-> **Resource Policy:** Pipeline dikonfigurasi untuk menggunakan maksimal **64 core** dan **60 GB RAM** sekaligus. Snakemake akan otomatis mengatur batching berdasarkan resource ini.
-> - SPAdes (assembly): max **3 sampel paralel** (bottleneck RAM: 3×16GB=48GB)
-> - Alignment/Snippy: max **7 sampel paralel** (7×8GB=56GB)
-> - AMR tools: max **15+ sampel paralel** (ringan, 2-4GB)
+## Main Outputs
+- `results/qc/multiqc_report.html`: Interactive summary of quality metrics across all steps.
+- `results/variants/{sample}.highmod.vcf`: High/moderate-impact SNPs and indels annotated using SnpEff.
+- `results/variants/{sample}_snippy/snps.tab`: Snippy tabular SNP output.
+- `results/phylogeny/core.tree`: FastTree core-genome SNP phylogenetic tree (ready for microreact.org or iTOL).
+- `results/typing/{sample}_kleborate.txt`: Kleborate output (MLST, K/O antigens, virulence/resistance scores).
+- `results/amr/summary_abricate.tab`: Matrix representing resistance genes across all samples.
 
-
-### 5. Visualisasi Phylogenetic Tree (Opsional)
-Upload `results/phylogeny/core.tree` ke [Microreact](https://microreact.org) atau [iTOL](https://itol.embl.de) bersama metadata `config/samples.tsv` untuk peta interaktif.
-
-## Output Utama
-| File | Deskripsi |
-|---|---|
-| `results/qc/multiqc_report.html` | Agregasi semua QC report |
-| `results/variants/{sample}.highmod.vcf` | Variant HIGH/MODERATE impact (FreeBayes + SnpEff + SnpSift) |
-| `results/variants/{sample}_snippy/snps.tab` | SNP summary per sampel (Snippy) |
-| `results/phylogeny/core.tree` | Phylogenetic tree (FastTree GTR) |
-| `results/typing/{sample}_kleborate.txt` | MLST, K/O-locus, virulence score |
-| `results/amr/summary_abricate.tab` | Summary AMR genes semua sampel |
-
-## Modifikasi Sampel
-Daftar sampel dikelola di `config/samples.tsv`. Tambah atau kurangi ID aksesion SRA di sana, lalu jalankan ulang pipeline.
+## Downstream Analysis
+Once the main variant calling and assembly steps are complete, proceed to the [downstream directory](file:///e:/Project/kpnumo-wgs/downstream/README.md) for functional annotation (Prokka), pan-genome profiling (Roary), plasmid replicon typing (PlasmidFinder), taxonomy validation (FastANI), and script-based statistical/visual analysis.

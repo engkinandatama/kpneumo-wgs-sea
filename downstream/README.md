@@ -1,114 +1,76 @@
-# Downstream Analysis Pipeline
+# Downstream Genomic and Statistical Analysis Pipeline
 
-Pipeline Snakemake untuk analisis lanjutan (downstream) pasca pipeline WGS utama
-selesai. Dirancang untuk menghasilkan data berkualitas publikasi pada jurnal Q1/Q2.
+This downstream analysis sub-workflow performs functional annotation, taxonomic validation, plasmid typing, pan-genome comparison, genomic distance profiling, and statistical modeling on the processed isolates.
 
-## Analisis yang Dilakukan
+## Analyses Performed
 
-| # | Rule | Output | Tujuan Ilmiah |
+| # | Rule | Output | Scientific Purpose |
 |---|---|---|---|
-| 1 | `prokka` | `results/downstream/prokka/` | Anotasi fungsional gen per isolat |
-| 2 | `fastani_compute` | `results/downstream/fastani/ani_matrix.tsv` | Konfirmasi spesiasi ANI >95% |
-| 3 | `plasmidfinder` | `results/downstream/plasmid/` | Identifikasi tipe plasmid pembawa AMR |
-| 4 | `roary` | `results/downstream/roary/` | Pan-genome: core vs. accessory genome |
-| 5 | `amr_heatmap` | `results/downstream/figures/amr_heatmap.pdf` | Visualisasi resistome untuk manuskrip |
-| 6 | `snp_distance` | `results/downstream/snp_distance/` | Matriks jarak genomik antar isolat |
-| 7 | `statistical_tests` | `results/downstream/statistics/stats_report.txt` | Uji Fisher's Exact, Chi-square, Kruskal-Wallis |
-| 8 | `geo_map` | `results/downstream/figures/geo_map.pdf` | Peta distribusi geografis Asia Tenggara |
+| 1 | `prokka` | `results/downstream/prokka/` | Functional annotation of genes across draft assemblies |
+| 2 | `fastani_compute` | `results/downstream/fastani/ani_matrix.tsv` | Speciation verification using average nucleotide identity (ANI) |
+| 3 | `plasmidfinder` | `results/downstream/plasmid/` | Identifies plasmid replicons carrying resistance genes |
+| 4 | `roary` | `results/downstream/roary/` | Pan-genome analysis: core vs. accessory gene determination |
+| 5 | `amr_heatmap` | `results/downstream/figures/amr_heatmap.pdf` | Generates clustered resistome heatmaps for the publication |
+| 6 | `snp_distance` | `results/downstream/snp_distance/` | Computes pairwise core SNP distances between strains |
+| 7 | `statistical_tests` | `results/downstream/statistics/stats_report.txt` | Calculates Fisher's Exact, Chi-Square, and Kruskal-Wallis tests |
+| 8 | `geo_map` | `results/downstream/figures/geo_map.pdf` | Plots regional distribution and metadata maps |
 
-## Prasyarat
+## Prerequisites
 
-Pastikan **pipeline utama (`Snakefile` di root project)** sudah selesai dan menghasilkan:
-- `results/amr/{sample}_assembly/contigs.fasta` untuk semua sampel
-- `results/phylogeny/core.tab` (output Snippy-core)
-- `results/amr/summary_abricate.tab`
-- `results/ready_to_download/typing/metadata_summary.tsv`
+Ensure that the main Snakemake workflow (defined in the root directory) has finished and generated:
+- `results/amr/{sample}_assembly/contigs.fasta` for all 20 samples.
+- `results/phylogeny/core.tab` (from Snippy-core).
+- `results/amr/summary_abricate.tab`.
+- `results/ready_to_download/typing/metadata_summary.tsv`.
 
-## Cara Menjalankan di HPC
+## Usage
 
-### 1. Push ke GitHub (dari lokal)
+Run the downstream Snakemake sub-workflow by specifying the downstream Snakefile path:
+
+### 1. Dry-run Validation
 ```bash
-git add downstream/
-git commit -m "feat(downstream): add downstream analysis pipeline (Prokka, Roary, FastANI, PlasmidFinder, statistics)"
-git push
+snakemake -s downstream/Snakefile --use-conda -n --cores 16
 ```
 
-### 2. Pull di HPC
+### 2. Generate DAG Diagram (Optional)
 ```bash
-cd /path/to/project
-git pull
+snakemake -s downstream/Snakefile --dag | dot -Tpdf > downstream/dag.pdf
 ```
 
-### 3. Dry-run (validasi tanpa eksekusi)
+### 3. Run Pipeline
 ```bash
-snakemake -s downstream/Snakefile \
-    --use-conda \
-    --cores 32 \
-    --resources mem_mb=30000 \
-    --dry-run
+snakemake -s downstream/Snakefile --use-conda --cores 16
 ```
 
-### 4. Generate DAG diagram
-```bash
-snakemake -s downstream/Snakefile \
-    --dag | dot -Tpdf > downstream/dag.pdf
-```
+## Output Structure
 
-### 5. Jalankan pipeline penuh
-```bash
-snakemake -s downstream/Snakefile \
-    --use-conda \
-    --conda-prefix ~/.conda-envs \
-    --cores 32 \
-    --resources mem_mb=30000 \
-    --rerun-incomplete \
-    2>&1 | tee logs/downstream_run.log
-```
-
-## Estimasi Waktu
-
-| Analisis | Estimasi (32 cores) |
-|---|---|
-| Prokka × 20 sampel | 30–40 menit |
-| FastANI all-vs-all | 5 menit |
-| PlasmidFinder × 20 sampel | 20 menit |
-| Roary (setelah Prokka selesai) | 30–60 menit |
-| Statistik + Heatmap + Peta | 5–10 menit |
-| **Total** | **~1.5 – 2.5 jam** |
-
-## Struktur Output
-
-```
+```text
 results/downstream/
 ├── prokka/
-│   └── {sample}/
-│       ├── {sample}.gff
-│       └── {sample}.faa
+│   └── {sample}/                # Prokka GFF, GBK, FAA, and FNA annotations
 ├── fastani/
-│   ├── ani_matrix.tsv
-│   └── ani_classified.tsv
+│   ├── ani_matrix.tsv           # Pairwise FastANI matrix
+│   └── ani_classified.tsv       # Filtered ANI species designations
 ├── plasmid/
-│   ├── {sample}/results_tab.tsv
-│   └── plasmid_summary.tsv
+│   ├── {sample}/                # PlasmidFinder outputs per sample
+│   └── plasmid_summary.tsv      # Aggregated plasmid replicon profiles
 ├── roary/
 │   ├── gene_presence_absence.csv
-│   └── summary_statistics.txt
+│   └── summary_statistics.txt   # Core genome vs. pan-genome stats
 ├── snp_distance/
-│   ├── snp_matrix.tsv
-│   ├── snp_heatmap.pdf
-│   └── snp_heatmap.png
+│   ├── snp_matrix.tsv           # Core genome pairwise SNP distance matrix
+│   ├── snp_heatmap.pdf          # Log-scaled SNP heatmap (Publication quality)
+│   └── snp_heatmap.png          # Log-scaled SNP heatmap (Preview)
 ├── statistics/
-│   └── stats_report.txt
+│   └── stats_report.txt         # Statistical analysis outputs (scipy.stats)
 └── figures/
-    ├── amr_heatmap.pdf
-    ├── amr_heatmap.png
-    ├── geo_map.pdf
-    └── geo_map.png
+    ├── amr_heatmap.pdf          # Publication Jaccard-clustered resistome heatmap
+    ├── amr_heatmap.png          # Preview Jaccard-clustered resistome heatmap
+    ├── geo_map.pdf              # Regional map
+    └── geo_map.png              # Regional map preview
 ```
 
-## Catatan Penting
-
-- **K. quasipneumoniae** termasuk dalam analisis pan-genome Roary karena merupakan anggota
-  *Klebsiella pneumoniae* species complex (KpSC) dan perbandingannya secara ilmiah menarik.
-- **PlasmidFinder** membutuhkan database yang akan otomatis diunduh saat pertama kali dijalankan.
-- Semua figure dihasilkan dalam format **PDF** (untuk publikasi) dan **PNG** (untuk preview).
+## Important Notes
+- **Taxonomic Diversity:** The four Indonesian isolates are confirmed as *K. quasipneumoniae subsp. quasipneumoniae* (ANI ~93.8% against *K. pneumoniae* HS11286 reference genome). They are included in pan-genome analysis to evaluate KpSC-wide gene diversity.
+- **PlasmidFinder:** The workflow automatically handles database setup and checks for conserved plasmid types like IncFIB, IncFII, and IncX4 that are associated with carbapenemase mobilization.
+- **Output Formats:** Figures are produced in **PDF** format (vector graphics for publication) and **PNG** format (for fast rendering/previews).
