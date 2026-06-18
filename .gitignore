@@ -10,3 +10,7 @@ logs/
 *.fasta
 *.fna
 benchmarks/
+__pycache__/
+*.pyc
+.DS_Store
+
