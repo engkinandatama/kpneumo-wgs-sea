@@ -5,9 +5,10 @@ import sys
 
 # List of accessions to check
 accessions = [
-    "SRR31897984", "SRR31897983", "SRR31897982", "SRR31897981", "SRR21679075",
-    "SRR7964123", "SRR7964124", "SRR7964125", "SRR7964126", "SRR7964127",
-    "DRR076141", "DRR076142", "DRR076143", "DRR076144", "DRR076145"
+    "ERR9538944", "ERR9538945", "ERR9538947", "ERR9538952", "ERR9538958",
+    "SRR21679075", "SRR31897979", "SRR31897980", "SRR31897981", "SRR31897982",
+    "SRR26412217", "SRR26412242", "SRR26412243", "SRR26412254", "SRR26412293",
+    "SRR6208298", "SRR6208299", "SRR6208300", "SRR6208301", "SRR6208302"
 ]
 
 print("Checking layout for SRA accessions...", flush=True)
@@ -40,4 +41,4 @@ for acc in accessions:
     time.sleep(0.5)
 
 print("-" * 50)
-print("Selesai.")
+print("Done.")
