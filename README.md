@@ -1,6 +1,11 @@
 # WGS and Downstream Analysis Pipeline for Southeast Asian KpSC Clinical Isolates
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20742385.svg)](https://doi.org/10.5281/zenodo.20742385)
+[![Figshare](https://img.shields.io/badge/Figshare-10.6084%2Fm9.figshare.32622471-blue)](https://doi.org/10.6084/m9.figshare.32622471)
+
 This repository contains a reproducible Snakemake workflow for processing raw whole-genome sequencing (WGS) data of *Klebsiella pneumoniae* species complex (KpSC) clinical isolates from Southeast Asia (Indonesia, Malaysia, Thailand, and Vietnam).
+
+The complete processed genomic dataset is permanently archived on Figshare: [https://doi.org/10.6084/m9.figshare.32622471](https://doi.org/10.6084/m9.figshare.32622471).
 
 ## Features
 - **End-to-End Automation:** From raw SRA read retrieval to variant calling, assembly, typing, AMR profiling, phylogeny, and downstream statistical/visual analyses.
